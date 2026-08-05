@@ -79,6 +79,7 @@ model User {
   downtimeEntries    DowntimeEntry[]
   changeoverEntries  ChangeoverEntry[]
   manpowerEntries    ManpowerEntry[]
+  wasteEntries       WasteEntry[]
   shiftClosings      ShiftClosing[]
   notifications      Notification[]
   auditLogs          AuditLog[]          @relation("AuditActor")
@@ -130,6 +131,7 @@ model ProductionLine {
   machines        Machine[]
   productionPlans ProductionPlan[]
   changeoverEntries ChangeoverEntry[]
+  wasteEntries    WasteEntry[]
 
   @@index([plantId])
   @@index([supervisorId])
@@ -291,6 +293,7 @@ model Shift {
 
   productionPlans ProductionPlan[]
   shiftClosings   ShiftClosing[]
+  wasteEntries    WasteEntry[]
 
   @@map("shifts")
 }
@@ -329,6 +332,7 @@ model ProductionPlan {
   downtimeEntries   DowntimeEntry[]
   changeoverEntries ChangeoverEntry[]
   manpowerEntries   ManpowerEntry[]
+  wasteEntries      WasteEntry[]
   shiftClosings     ShiftClosing[]
 
   @@index([productionDate])
@@ -465,6 +469,55 @@ model ManpowerEntry {
 
   @@index([planId])
   @@map("manpower_entries")
+}
+
+/** Raw-material waste catalog (Preform, Bottles, Cap, Stickers, Shrink Film) */
+model WasteMaterial {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  defaultUnit String    @default("pcs")
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  entries WasteEntry[]
+
+  @@index([deletedAt])
+  @@map("waste_materials")
+}
+
+model WasteEntry {
+  id           String   @id @default(cuid())
+  wasteDate    DateTime @db.Date
+  materialId   String
+  quantity     Float
+  unit         String
+  reason       String
+  remarks      String?
+  shiftId      String?
+  lineId       String?
+  planId       String?
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  material  WasteMaterial  @relation(fields: [materialId], references: [id])
+  shift     Shift?         @relation(fields: [shiftId], references: [id])
+  line      ProductionLine? @relation(fields: [lineId], references: [id])
+  plan      ProductionPlan? @relation(fields: [planId], references: [id])
+  createdBy User           @relation(fields: [createdById], references: [id])
+
+  @@index([wasteDate])
+  @@index([materialId])
+  @@index([shiftId])
+  @@index([lineId])
+  @@index([planId])
+  @@index([deletedAt])
+  @@map("waste_entries")
 }
 
 model ShiftClosing {

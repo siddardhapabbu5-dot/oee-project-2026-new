@@ -26,6 +26,8 @@ import {
   UserRound,
   Monitor,
   UsersRound,
+  Recycle,
+  PackageX,
   BookOpen,
 } from 'lucide-react';
 import type { Role } from '../store';
@@ -56,12 +58,14 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Changeover Types', path: '/changeover-types', roles: ['ADMIN'], group: 'Master Data', icon: RefreshCw },
   { label: 'Work Orders', path: '/plans', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Planning', icon: ClipboardList },
   { label: 'Production Entries', path: '/production-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: HardHat },
+  { label: 'Waste Entries', path: '/waste-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: PackageX },
   { label: 'Changeover Details', path: '/changeover-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: ArrowLeftRight },
   { label: 'Approvals', path: '/approvals', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Shop Floor', icon: BadgeCheck },
   { label: 'Monitoring', path: '/monitoring', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: Activity },
   { label: 'Downtime Analysis', path: '/downtime-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Analytics', icon: TimerOff },
   { label: 'Changeover Analysis', path: '/changeover-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Analytics', icon: ArrowLeftRight },
   { label: 'Manpower Analysis', path: '/manpower-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: UsersRound },
+  { label: 'Waste Report', path: '/waste-report', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: Recycle },
   { label: 'Reports', path: '/reports', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: FileBarChart2 },
   { label: 'Notifications', path: '/notifications', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'System', icon: Bell },
   { label: 'Audit Logs', path: '/audit-logs', roles: ['ADMIN'], group: 'System', icon: ScrollText },
@@ -191,6 +195,12 @@ export const SEARCH_KPIS: SearchKpi[] = [
     hint: 'Present ÷ Planned headcount',
     path: '/manpower-analysis',
     keywords: ['manpower availability', 'headcount', 'staffing', 'operators'],
+  },
+  {
+    label: 'Waste Report',
+    hint: 'Raw material waste dashboard',
+    path: '/waste-report',
+    keywords: ['waste', 'scrap', 'preform', 'bottles', 'cap', 'stickers', 'shrink film', 'raw material'],
   },
 ];
 

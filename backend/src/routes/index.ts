@@ -8,6 +8,7 @@ import { masterService } from '../services/master.service.js';
 import * as productionService from '../services/production.service.js';
 import * as dashboardService from '../services/dashboard.service.js';
 import * as reportService from '../services/report.service.js';
+import * as wasteService from '../services/waste.service.js';
 import {
   loginSchema,
   changePasswordSchema,
@@ -31,6 +32,8 @@ import {
   changeoverEntrySchema,
   changeoverEntryUpdateSchema,
   manpowerEntrySchema,
+  wasteEntrySchema,
+  wasteEntryUpdateSchema,
   shiftClosingSchema,
   approvalSchema,
   settingSchema,
@@ -409,6 +412,50 @@ router.post('/manpower-entries', authenticate, authorize('ADMIN', 'PRODUCTION_MA
   success(res, await productionService.createManpower(manpowerEntrySchema.parse(req.body), req), 201);
 }));
 
+/** Waste — raw material scrap / waste */
+router.get('/waste-materials', authenticate, asyncHandler(async (_req, res) => {
+  success(res, await wasteService.listWasteMaterials());
+}));
+
+router.get('/waste-entries', authenticate, asyncHandler(async (req, res) => {
+  success(
+    res,
+    await wasteService.listWasteEntries({
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      materialId: req.query.materialId as string | undefined,
+      shiftId: req.query.shiftId as string | undefined,
+      lineId: req.query.lineId as string | undefined,
+      planId: req.query.planId as string | undefined,
+    }),
+  );
+}));
+
+router.post('/waste-entries', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'), asyncHandler(async (req, res) => {
+  success(res, await wasteService.createWasteEntry(wasteEntrySchema.parse(req.body), req), 201);
+}));
+
+router.patch('/waste-entries/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'), asyncHandler(async (req, res) => {
+  success(res, await wasteService.updateWasteEntry(idParam(req), wasteEntryUpdateSchema.parse(req.body)));
+}));
+
+router.delete('/waste-entries/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'), asyncHandler(async (req, res) => {
+  success(res, await wasteService.deleteWasteEntry(idParam(req)));
+}));
+
+router.get('/dashboard/waste-report', authenticate, asyncHandler(async (req, res) => {
+  success(
+    res,
+    await wasteService.getWasteReport({
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      materialId: req.query.materialId as string | undefined,
+      shiftId: req.query.shiftId as string | undefined,
+      lineId: req.query.lineId as string | undefined,
+    }),
+  );
+}));
+
 router.post('/shift-closings', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'), asyncHandler(async (req, res) => {
   const body = shiftClosingSchema.parse(req.body);
   success(res, await productionService.closeShift(body.planId, body.remarks, req), 201);
@@ -462,6 +509,22 @@ router.get('/dashboard/plan-vs-actual', authenticate, asyncHandler(async (req, r
       packVolume: req.query.packVolume as string | undefined,
     }),
   );
+}));
+
+router.get('/dashboard/plan-vs-actual/export/excel', authenticate, asyncHandler(async (req, res) => {
+  const buffer = await dashboardService.exportPlanVsActualExcel(req.user, {
+    from: req.query.from as string | undefined,
+    to: req.query.to as string | undefined,
+    brandId: req.query.brandId as string | undefined,
+    skuId: req.query.skuId as string | undefined,
+    packVolume: req.query.packVolume as string | undefined,
+  });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename=plan-vs-actual-${(req.query.from as string) || 'from'}-${(req.query.to as string) || 'to'}.xlsx`,
+  );
+  res.send(buffer);
 }));
 
 router.get('/dashboard/changeover-analysis', authenticate, asyncHandler(async (req, res) => {

@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma.js';
 import type { AuthUser } from '../middleware/auth.js';
 import type { Prisma } from '@prisma/client';
+import ExcelJS from 'exceljs';
 import {
   calcAchievement,
   calcCapacityUtilization,
@@ -498,6 +499,7 @@ export async function getPlanVsActualDashboard(
   });
 
   type Agg = {
+    date: string;
     productId: string;
     product: string;
     productCode: string;
@@ -517,9 +519,11 @@ export async function getPlanVsActualDashboard(
     const brandName = plan.product.brand?.name || plan.product.name || 'Unassigned';
     const brandId = plan.product.brandId || null;
     const skuLabel = plan.sku.packVolume || plan.sku.name || plan.sku.code;
+    const dateKey = plan.productionDate.toISOString().slice(0, 10);
 
-    const pKey = plan.productId;
+    const pKey = `${dateKey}::${plan.productId}`;
     const p = byProduct.get(pKey) ?? {
+      date: dateKey,
       productId: plan.productId,
       product: plan.product.name,
       productCode: plan.product.code,
@@ -534,10 +538,11 @@ export async function getPlanVsActualDashboard(
     p.actualCases += actual;
     byProduct.set(pKey, p);
 
-    // Aggregate by pack volume so catalog SKU + brand SKU combine cleanly
+    // Aggregate by date + product + pack volume
     const packKey = (plan.sku.packVolume || plan.sku.code || plan.skuId).toUpperCase();
-    const sKey = `${plan.productId}::${packKey}`;
+    const sKey = `${dateKey}::${plan.productId}::${packKey}`;
     const s = bySku.get(sKey) ?? {
+      date: dateKey,
       productId: plan.productId,
       product: plan.product.name,
       productCode: plan.product.code,
@@ -557,6 +562,7 @@ export async function getPlanVsActualDashboard(
     .map((r) => {
       const variance = Number((r.actualCases - r.plannedCases).toFixed(2));
       return {
+        date: r.date,
         productId: r.productId,
         product: r.product,
         productCode: r.productCode,
@@ -568,12 +574,13 @@ export async function getPlanVsActualDashboard(
         achievement: calcAchievement(r.plannedCases, r.actualCases),
       };
     })
-    .sort((a, b) => a.product.localeCompare(b.product));
+    .sort((a, b) => a.date.localeCompare(b.date) || a.product.localeCompare(b.product));
 
   const skuRows = [...bySku.values()]
     .map((r) => {
       const variance = Number((r.actualCases - r.plannedCases).toFixed(2));
       return {
+        date: r.date,
         productId: r.productId,
         product: r.product,
         brand: r.brand,
@@ -586,7 +593,7 @@ export async function getPlanVsActualDashboard(
         achievement: calcAchievement(r.plannedCases, r.actualCases),
       };
     })
-    .sort((a, b) => a.product.localeCompare(b.product) || a.sku.localeCompare(b.sku));
+    .sort((a, b) => a.date.localeCompare(b.date) || a.product.localeCompare(b.product) || a.sku.localeCompare(b.sku));
 
   const plannedCases = rows.reduce((s, r) => s + r.plannedCases, 0);
   const actualCases = rows.reduce((s, r) => s + r.actualCases, 0);
@@ -607,17 +614,80 @@ export async function getPlanVsActualDashboard(
       achievement: calcAchievement(plannedCases, actualCases),
       productCount: rows.length,
     },
-    /** Clustered column chart: Product → Planned vs Actual */
-    chart: rows.map((r) => ({
-      product: r.product,
-      planned: r.plannedCases,
-      actual: r.actualCases,
-      variance: r.variance,
-    })),
-    /** Table: Product | Planned Cases | Actual Cases | Variance */
+    /** Clustered column chart: Product → Planned vs Actual (range total) */
+    chart: (() => {
+      const map = new Map<string, { product: string; planned: number; actual: number }>();
+      for (const r of rows) {
+        const cur = map.get(r.productId) ?? { product: r.product, planned: 0, actual: 0 };
+        cur.planned += r.plannedCases;
+        cur.actual += r.actualCases;
+        map.set(r.productId, cur);
+      }
+      return [...map.values()]
+        .map((r) => ({
+          product: r.product,
+          planned: Number(r.planned.toFixed(2)),
+          actual: Number(r.actual.toFixed(2)),
+          variance: Number((r.actual - r.planned).toFixed(2)),
+        }))
+        .sort((a, b) => a.product.localeCompare(b.product));
+    })(),
+    /** Table: Date | Product | Planned Cases | Actual Cases | Variance */
     rows,
     skuRows,
   };
+}
+
+export async function exportPlanVsActualExcel(
+  user?: AuthUser,
+  filters?: { from?: string; to?: string; brandId?: string; skuId?: string; packVolume?: string },
+) {
+  const data = await getPlanVsActualDashboard(user, filters);
+  const tableRows = data.skuRows?.length ? data.skuRows : data.rows.map((r) => ({ ...r, sku: '—' }));
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Nakshatra Beverages MES';
+  const sheet = workbook.addWorksheet('Plan vs Actual');
+
+  sheet.columns = [
+    { header: 'Date', key: 'date', width: 14 },
+    { header: 'Product', key: 'product', width: 18 },
+    { header: 'SKU', key: 'sku', width: 12 },
+    { header: 'Brand', key: 'brand', width: 16 },
+    { header: 'Planned Cases', key: 'planned', width: 14 },
+    { header: 'Actual Cases', key: 'actual', width: 14 },
+    { header: 'Variance', key: 'variance', width: 12 },
+    { header: 'Achievement %', key: 'achievement', width: 14 },
+  ];
+
+  sheet.getRow(1).font = { bold: true };
+
+  for (const r of tableRows) {
+    sheet.addRow({
+      date: r.date,
+      product: r.product,
+      sku: r.sku || '—',
+      brand: r.brand,
+      planned: r.plannedCases,
+      actual: r.actualCases,
+      variance: r.variance,
+      achievement: r.achievement,
+    });
+  }
+
+  sheet.addRow({
+    date: '',
+    product: 'Total',
+    sku: '',
+    brand: '',
+    planned: data.totals.plannedCases,
+    actual: data.totals.actualCases,
+    variance: data.totals.variance,
+    achievement: data.totals.achievement,
+  }).font = { bold: true };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer);
 }
 
 /** Changeover Analysis — reads ChangeoverEntry directly (not only plan-linked). */

@@ -203,6 +203,20 @@ export const manpowerEntrySchema = z.object({
   recordedAt: z.string().or(z.date()).optional(),
 });
 
+export const wasteEntrySchema = z.object({
+  wasteDate: z.string().min(8),
+  materialId: z.string().min(1),
+  quantity: z.number().positive(),
+  unit: z.string().optional().nullable(),
+  reason: z.string().min(1),
+  remarks: z.string().optional().nullable(),
+  shiftId: z.string().optional().nullable(),
+  lineId: z.string().optional().nullable(),
+  planId: z.string().min(1),
+});
+
+export const wasteEntryUpdateSchema = wasteEntrySchema.partial();
+
 export const shiftClosingSchema = z.object({
   planId: z.string(),
   remarks: z.string().optional().nullable(),

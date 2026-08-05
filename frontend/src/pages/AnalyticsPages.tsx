@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { FileSpreadsheet } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -16,10 +17,9 @@ import {
   YAxis,
 } from 'recharts';
 import api, { type ApiResponse } from '../lib/api';
-import { ChartCard, KpiCard, LoadingBlock, PageHeader, Badge } from '../components/ui';
+import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader, Badge } from '../components/ui';
 import { StatusBadge } from '../components/CrudPage';
 import { useMemo, useState } from 'react';
-import { Field } from '../components/ui';
 import { formatWorkOrder } from '../lib/workOrder';
 
 const COLORS = [
@@ -411,6 +411,7 @@ export function PlanVsActualPage() {
     };
     chart: Array<{ product: string; planned: number; actual: number; variance: number }>;
     rows: Array<{
+      date: string;
       productId: string;
       product: string;
       brand: string;
@@ -420,6 +421,7 @@ export function PlanVsActualPage() {
       achievement: number;
     }>;
     skuRows: Array<{
+      date: string;
       productId: string;
       product: string;
       brand: string;
@@ -465,11 +467,41 @@ export function PlanVsActualPage() {
   const t = d.totals;
   const tableRows = d.skuRows?.length ? d.skuRows : d.rows.map((r) => ({ ...r, skuId: null as string | null, sku: '—' }));
 
+  async function downloadExcel() {
+    try {
+      const res = await api.get('/dashboard/plan-vs-actual/export/excel', {
+        responseType: 'blob',
+        params: {
+          from,
+          to,
+          ...(brandId ? { brandId } : {}),
+          ...(skuId ? { skuId } : {}),
+          ...(packVolume ? { packVolume } : {}),
+        },
+      });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `plan-vs-actual-${from}_${to}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Excel downloaded');
+    } catch {
+      toast.error('Excel download failed');
+    }
+  }
+
   return (
     <div>
       <PageHeader
         title="Production Plan vs Actual Dashboard"
         subtitle="Clustered column chart — Brand & SKU wise · Variance = Actual − Planned"
+        actions={
+          <button className="btn btn-secondary" type="button" onClick={() => void downloadExcel()}>
+            <FileSpreadsheet size={16} strokeWidth={1.75} />
+            Download Excel
+          </button>
+        }
       />
 
       <div className="panel mb-4 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
@@ -579,12 +611,13 @@ export function PlanVsActualPage() {
       </div>
 
       <div className="mb-2 text-sm font-semibold">
-        Product · SKU · Planned Cases · Actual Cases · Variance ({tableRows.length})
+        Date · Product · SKU · Planned Cases · Actual Cases · Variance ({tableRows.length})
       </div>
       <div className="table-wrap panel">
         <table className="data">
           <thead>
             <tr>
+              <th>Date</th>
               <th>Product</th>
               <th>SKU</th>
               <th>Brand</th>
@@ -597,13 +630,22 @@ export function PlanVsActualPage() {
           <tbody>
             {tableRows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center" style={{ color: 'var(--muted)' }}>
+                <td colSpan={8} className="py-8 text-center" style={{ color: 'var(--muted)' }}>
                   No plan/actual data for the selected filters
                 </td>
               </tr>
             ) : (
               tableRows.map((r, idx) => (
-                <tr key={`${r.productId}-${r.skuId ?? 'none'}-${idx}`}>
+                <tr key={`${r.date}-${r.productId}-${r.skuId ?? 'none'}-${idx}`}>
+                  <td className="whitespace-nowrap">
+                    {(() => {
+                      const raw = String(r.date).slice(0, 10);
+                      const d = new Date(`${raw}T12:00:00`);
+                      return Number.isNaN(d.getTime())
+                        ? raw
+                        : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                    })()}
+                  </td>
                   <td className="font-medium">{r.product}</td>
                   <td>{r.sku || '—'}</td>
                   <td>{r.brand}</td>
@@ -620,7 +662,7 @@ export function PlanVsActualPage() {
           {tableRows.length > 0 ? (
             <tfoot>
               <tr>
-                <td colSpan={3} className="font-semibold">
+                <td colSpan={4} className="font-semibold">
                   Total
                 </td>
                 <td className="font-semibold">{t.plannedCases.toLocaleString()}</td>

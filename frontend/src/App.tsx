@@ -35,6 +35,8 @@ import LineWiseOverviewPage from './pages/LineWiseOverviewPage';
 import ProductionTargetsPage from './pages/ProductionTargetsPage';
 import OeeGuidancePage from './pages/OeeGuidancePage';
 import HomePage from './pages/HomePage';
+import WasteEntriesPage from './pages/WasteEntriesPage';
+import WasteReportPage from './pages/WasteReportPage';
 import type { ReactNode } from 'react';
 
 function Protected({ children, path }: { children: ReactNode; path: string }) {
@@ -75,6 +77,7 @@ export default function App() {
         <Route path="changeover-types" element={<Protected path="/changeover-types"><ChangeoverTypesPage /></Protected>} />
         <Route path="plans" element={<Protected path="/plans"><PlansPage /></Protected>} />
         <Route path="production-entries" element={<Protected path="/production-entries"><ProductionEntriesPage /></Protected>} />
+        <Route path="waste-entries" element={<Protected path="/waste-entries"><WasteEntriesPage /></Protected>} />
         <Route path="changeover-entries" element={<Protected path="/changeover-entries"><ChangeoverEntriesPage /></Protected>} />
         <Route path="shop-floor" element={<Navigate to="/production-entries" replace />} />
         <Route path="approvals" element={<Protected path="/approvals"><ApprovalsPage /></Protected>} />
@@ -82,6 +85,7 @@ export default function App() {
         <Route path="downtime-analysis" element={<Protected path="/downtime-analysis"><DowntimeAnalysisPage /></Protected>} />
         <Route path="changeover-analysis" element={<Protected path="/changeover-analysis"><ChangeoverAnalysisPage /></Protected>} />
         <Route path="manpower-analysis" element={<Protected path="/manpower-analysis"><ManpowerAnalysisPage /></Protected>} />
+        <Route path="waste-report" element={<Protected path="/waste-report"><WasteReportPage /></Protected>} />
         <Route path="reports" element={<Protected path="/reports"><ReportsPage /></Protected>} />
         <Route path="notifications" element={<Protected path="/notifications"><NotificationsPage /></Protected>} />
         <Route path="audit-logs" element={<Protected path="/audit-logs"><AuditLogsPage /></Protected>} />
