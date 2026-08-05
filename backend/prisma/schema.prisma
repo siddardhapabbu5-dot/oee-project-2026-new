@@ -1,0 +1,545 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PRODUCTION_MANAGER
+  LINE_SUPERVISOR
+}
+
+enum PlanStatus {
+  DRAFT
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum EntryStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum ChangeoverKind {
+  PLANNED
+  UNPLANNED
+}
+
+enum ChangeoverStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationType {
+  TARGET_MISSED
+  HIGH_DOWNTIME
+  MACHINE_BREAKDOWN
+  PENDING_APPROVAL
+  SYSTEM
+}
+
+enum ShiftClosingStatus {
+  OPEN
+  CLOSED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  employeeId   String    @unique
+  email        String    @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  role         Role      @default(LINE_SUPERVISOR)
+  plantId      String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  createdById  String?
+  updatedById  String?
+
+  plant              Plant?              @relation(fields: [plantId], references: [id])
+  supervisedLines    ProductionLine[]    @relation("LineSupervisor")
+  productionPlans    ProductionPlan[]    @relation("PlanSupervisor")
+  productionEntries  ProductionEntry[]   @relation("EntryCreator")
+  approvedEntries    ProductionEntry[]   @relation("EntryApprover")
+  downtimeEntries    DowntimeEntry[]
+  changeoverEntries  ChangeoverEntry[]
+  manpowerEntries    ManpowerEntry[]
+  shiftClosings      ShiftClosing[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]          @relation("AuditActor")
+  settingsUpdated    AppSetting[]
+
+  @@index([role])
+  @@index([plantId])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Plant {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  location    String?
+  timezone    String    @default("Asia/Kolkata")
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?
+  updatedById String?
+
+  users           User[]
+  lines           ProductionLine[]
+  productionPlans ProductionPlan[]
+
+  @@index([deletedAt])
+  @@map("plants")
+}
+
+model ProductionLine {
+  id           String    @id @default(cuid())
+  code         String    @unique
+  name         String
+  plantId      String
+  supervisorId String?
+  capacityCph  Float? // cases per hour capacity
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  createdById  String?
+  updatedById  String?
+
+  plant           Plant            @relation(fields: [plantId], references: [id])
+  supervisor      User?            @relation("LineSupervisor", fields: [supervisorId], references: [id])
+  machines        Machine[]
+  productionPlans ProductionPlan[]
+  changeoverEntries ChangeoverEntry[]
+
+  @@index([plantId])
+  @@index([supervisorId])
+  @@index([deletedAt])
+  @@map("production_lines")
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?
+  updatedById String?
+
+  products Product[]
+
+  @@index([deletedAt])
+  @@map("brands")
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  brandId     String?
+  description String?
+  uom         String    @default("CASE")
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?
+  updatedById String?
+
+  brand              Brand?            @relation(fields: [brandId], references: [id])
+  skus               Sku[]
+  productionPlans    ProductionPlan[]
+  changeoversFrom    ChangeoverEntry[] @relation("ChangeoverFrom")
+  changeoversTo      ChangeoverEntry[] @relation("ChangeoverTo")
+
+  @@index([brandId])
+  @@index([deletedAt])
+  @@map("products")
+}
+
+model Sku {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  productId   String
+  packSize    Int? // bottles/units per case: 250ml=30, 500ml=24, 1000ml=12
+  packVolume  String? // e.g. 250 ML, 500 ML
+  bottlesPerHour Int? // rated line speed in bottles/hour (default 5400)
+  casesPerPallet Int?
+  netWeightKg Float?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?
+  updatedById String?
+
+  product         Product          @relation(fields: [productId], references: [id])
+  productionPlans ProductionPlan[]
+  changeoversFrom ChangeoverEntry[] @relation("ChangeoverFromSku")
+  changeoversTo   ChangeoverEntry[] @relation("ChangeoverToSku")
+
+  @@index([productId])
+  @@index([deletedAt])
+  @@map("skus")
+}
+
+model Machine {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  lineId      String
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?
+  updatedById String?
+
+  line            ProductionLine   @relation(fields: [lineId], references: [id])
+  downtimeEntries DowntimeEntry[]
+
+  @@index([lineId])
+  @@index([deletedAt])
+  @@map("machines")
+}
+
+model DowntimeCategory {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  reasons         DowntimeReason[]
+  downtimeEntries DowntimeEntry[]
+
+  @@map("downtime_categories")
+}
+
+model DowntimeReason {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  categoryId  String
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  category        DowntimeCategory @relation(fields: [categoryId], references: [id])
+  downtimeEntries DowntimeEntry[]
+
+  @@index([categoryId])
+  @@map("downtime_reasons")
+}
+
+model ChangeoverType {
+  id           String    @id @default(cuid())
+  code         String    @unique
+  name         String
+  standardMins Float
+  description  String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  changeoverEntries ChangeoverEntry[]
+
+  @@map("changeover_types")
+}
+
+model Shift {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  startTime   String // HH:mm
+  endTime     String // HH:mm
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  productionPlans ProductionPlan[]
+  shiftClosings   ShiftClosing[]
+
+  @@map("shifts")
+}
+
+model ProductionPlan {
+  id                   String     @id @default(cuid())
+  planNumber           String     @unique
+  productionDate       DateTime   @db.Date
+  plantId              String
+  lineId               String
+  shiftId              String
+  productId            String
+  skuId                String
+  batchNumber          String
+  plannedCases         Float
+  plannedOperatingMins Float
+  plannedStartTime     DateTime
+  plannedEndTime       DateTime
+  plannedManpower      Int
+  supervisorId         String?
+  status               PlanStatus @default(SCHEDULED)
+  remarks              String?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  deletedAt            DateTime?
+  createdById          String?
+  updatedById          String?
+
+  plant             Plant              @relation(fields: [plantId], references: [id])
+  line              ProductionLine     @relation(fields: [lineId], references: [id])
+  shift             Shift              @relation(fields: [shiftId], references: [id])
+  product           Product            @relation(fields: [productId], references: [id])
+  sku               Sku                @relation(fields: [skuId], references: [id])
+  supervisor        User?              @relation("PlanSupervisor", fields: [supervisorId], references: [id])
+  productionEntries ProductionEntry[]
+  downtimeEntries   DowntimeEntry[]
+  changeoverEntries ChangeoverEntry[]
+  manpowerEntries   ManpowerEntry[]
+  shiftClosings     ShiftClosing[]
+
+  @@index([productionDate])
+  @@index([plantId, lineId, shiftId])
+  @@index([supervisorId])
+  @@index([status])
+  @@index([deletedAt])
+  @@index([deletedAt, productionDate])
+  @@index([plantId, deletedAt, productionDate])
+  @@map("production_plans")
+}
+
+model ProductionEntry {
+  id              String      @id @default(cuid())
+  planId          String
+  hourStart       DateTime
+  hourEnd         DateTime
+  plannedCases    Float
+  actualCases     Float
+  goodCases       Float
+  rejectCases     Float
+  lossCases       Float       @default(0)
+  remarks         String?
+  status          EntryStatus @default(DRAFT)
+  createdById     String
+  approvedById    String?
+  approvedAt      DateTime?
+  approvalRemarks String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
+
+  plan       ProductionPlan @relation(fields: [planId], references: [id])
+  createdBy  User           @relation("EntryCreator", fields: [createdById], references: [id])
+  approvedBy User?          @relation("EntryApprover", fields: [approvedById], references: [id])
+
+  @@index([planId])
+  @@index([status])
+  @@index([hourStart])
+  @@index([deletedAt])
+  @@index([planId, deletedAt, status])
+  @@map("production_entries")
+}
+
+model DowntimeEntry {
+  id           String    @id @default(cuid())
+  planId       String
+  machineId    String?
+  categoryId   String
+  reasonId     String
+  startTime    DateTime
+  endTime      DateTime
+  durationMins Float
+  actionTaken  String?
+  remarks      String?
+  createdById  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  plan      ProductionPlan    @relation(fields: [planId], references: [id])
+  machine   Machine?          @relation(fields: [machineId], references: [id])
+  category  DowntimeCategory  @relation(fields: [categoryId], references: [id])
+  reason    DowntimeReason    @relation(fields: [reasonId], references: [id])
+  createdBy User              @relation(fields: [createdById], references: [id])
+
+  @@index([planId])
+  @@index([machineId])
+  @@index([categoryId])
+  @@index([startTime])
+  @@index([deletedAt])
+  @@index([planId, deletedAt])
+  @@map("downtime_entries")
+}
+
+model ChangeoverEntry {
+  id               String           @id @default(cuid())
+  planId           String?
+  lineId           String?
+  productionDate   DateTime?        @db.Date
+  changeoverTypeId String
+  fromProductId    String
+  toProductId      String
+  fromSkuId        String?
+  toSkuId          String?
+  kind             ChangeoverKind   @default(PLANNED)
+  status           ChangeoverStatus @default(COMPLETED)
+  standardMins     Float
+  actualMins       Float
+  reason           String?
+  remarks          String?
+  startTime        DateTime?
+  endTime          DateTime?
+  createdById      String
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+
+  plan           ProductionPlan? @relation(fields: [planId], references: [id])
+  line           ProductionLine? @relation(fields: [lineId], references: [id])
+  changeoverType ChangeoverType  @relation(fields: [changeoverTypeId], references: [id])
+  fromProduct    Product         @relation("ChangeoverFrom", fields: [fromProductId], references: [id])
+  toProduct      Product         @relation("ChangeoverTo", fields: [toProductId], references: [id])
+  fromSku        Sku?            @relation("ChangeoverFromSku", fields: [fromSkuId], references: [id])
+  toSku          Sku?            @relation("ChangeoverToSku", fields: [toSkuId], references: [id])
+  createdBy      User            @relation(fields: [createdById], references: [id])
+
+  @@index([planId])
+  @@index([lineId])
+  @@index([productionDate])
+  @@index([kind])
+  @@index([deletedAt])
+  @@index([planId, deletedAt])
+  @@index([lineId, productionDate, deletedAt])
+  @@map("changeover_entries")
+}
+
+model ManpowerEntry {
+  id           String   @id @default(cuid())
+  planId       String
+  headcount    Int
+  operators    Int?
+  helpers      Int?
+  overtimeMins Float?   // overtime minutes for the shift crew
+  remarks      String?
+  recordedAt   DateTime @default(now())
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  plan      ProductionPlan @relation(fields: [planId], references: [id])
+  createdBy User           @relation(fields: [createdById], references: [id])
+
+  @@index([planId])
+  @@map("manpower_entries")
+}
+
+model ShiftClosing {
+  id             String             @id @default(cuid())
+  planId         String
+  shiftId        String
+  status         ShiftClosingStatus @default(OPEN)
+  totalPlanned   Float?
+  totalActual    Float?
+  totalGood      Float?
+  totalReject    Float?
+  totalDowntime  Float?
+  remarks        String?
+  closedAt       DateTime?
+  closedById     String
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  plan     ProductionPlan @relation(fields: [planId], references: [id])
+  shift    Shift          @relation(fields: [shiftId], references: [id])
+  closedBy User           @relation(fields: [closedById], references: [id])
+
+  @@unique([planId])
+  @@index([shiftId])
+  @@map("shift_closings")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  meta      Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entity     String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model AppSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       Json
+  description String?
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  updatedBy User? @relation(fields: [updatedById], references: [id])
+
+  @@map("app_settings")
+}

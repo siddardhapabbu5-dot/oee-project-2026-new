@@ -1,0 +1,474 @@
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Bell, LogOut, Menu, Moon, Search, Sun, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuthStore, useThemeStore } from '../store';
+import { NAV_ITEMS, SEARCH_KPIS, canAccess } from '../lib/nav';
+import api, { type ApiResponse } from '../lib/api';
+import { useSessionTimeout } from '../hooks/useSessionTimeout';
+import { formatWorkOrder } from '../lib/workOrder';
+
+type SearchPayload = {
+  plants: Array<{ id: string; name: string; code?: string }>;
+  lines: Array<{ id: string; name: string; code?: string }>;
+  products: Array<{ id: string; name: string; code?: string }>;
+  plans: Array<{ id: string; planNumber: string; batchNumber?: string }>;
+  users: Array<{ id: string; firstName: string; lastName: string; email: string }>;
+};
+
+export default function AppLayout() {
+  const { user, clearSession } = useAuthStore();
+  const { theme, toggle, setTheme } = useThemeStore();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchWrapRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useSessionTimeout();
+
+  useEffect(() => {
+    setTheme(theme);
+  }, [theme, setTheme]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedQ(q.trim()), 280);
+    return () => window.clearTimeout(t);
+  }, [q]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        setSearchOpen(true);
+      }
+      if (e.key === 'Escape') setSearchOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    function onPointer(e: MouseEvent) {
+      if (!searchWrapRef.current?.contains(e.target as Node)) setSearchOpen(false);
+    }
+    document.addEventListener('mousedown', onPointer);
+    return () => document.removeEventListener('mousedown', onPointer);
+  }, []);
+
+  const items = useMemo(
+    () => NAV_ITEMS.filter((n) => user && n.roles.includes(user.role)),
+    [user],
+  );
+
+  const groups = useMemo(() => {
+    const map = new Map<string, typeof items>();
+    for (const item of items) {
+      const arr = map.get(item.group) ?? [];
+      arr.push(item);
+      map.set(item.group, arr);
+    }
+    return [...map.entries()];
+  }, [items]);
+
+  const pageHits = useMemo(() => {
+    const term = debouncedQ.toLowerCase();
+    if (term.length < 1) return [];
+    return items
+      .filter(
+        (n) =>
+          n.label.toLowerCase().includes(term) ||
+          n.group.toLowerCase().includes(term) ||
+          n.path.toLowerCase().includes(term),
+      )
+      .slice(0, 6);
+  }, [debouncedQ, items]);
+
+  const kpiHits = useMemo(() => {
+    const term = debouncedQ.toLowerCase();
+    if (term.length < 1 || !user) return [];
+    return SEARCH_KPIS.filter((k) => {
+      if (!canAccess(user.role, k.path)) return false;
+      if (k.label.toLowerCase().includes(term)) return true;
+      if (k.hint.toLowerCase().includes(term)) return true;
+      return k.keywords.some((kw) => kw.includes(term));
+    }).slice(0, 8);
+  }, [debouncedQ, user]);
+
+  function renderKpiHits() {
+    if (kpiHits.length === 0) return null;
+    return (
+      <div>
+        <div className="mb-1 text-xs uppercase" style={{ color: 'var(--muted)' }}>
+          KPIs
+        </div>
+        {kpiHits.map((k) => (
+          <button
+            key={`${k.label}-${k.path}`}
+            type="button"
+            className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-[var(--panel-2)]"
+            style={{ color: 'var(--text)' }}
+            onClick={() => goTo(k.path)}
+          >
+            {k.label}
+            <span className="ml-2 text-xs" style={{ color: 'var(--muted)' }}>
+              {k.hint}
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const unreadQuery = useQuery({
+    queryKey: ['notifications-unread'],
+    queryFn: async () =>
+      (await api.get<ApiResponse<{ unread: number }>>('/notifications/unread-count')).data.data,
+    refetchInterval: () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return false;
+      return 120_000;
+    },
+    staleTime: 60_000,
+  });
+
+  const search = useQuery({
+    queryKey: ['search', debouncedQ],
+    enabled: debouncedQ.length >= 2,
+    staleTime: 30_000,
+    retry: 1,
+    queryFn: async () =>
+      (await api.get<ApiResponse<SearchPayload>>('/search', { params: { q: debouncedQ } })).data.data,
+  });
+
+  const unread = unreadQuery.data?.unread ?? 0;
+  const initials = `${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.toUpperCase();
+
+  const dataHits = search.data;
+  const recordCount =
+    (dataHits?.plants.length ?? 0) +
+    (dataHits?.lines.length ?? 0) +
+    (dataHits?.products.length ?? 0) +
+    (dataHits?.plans.length ?? 0) +
+    (dataHits?.users.length ?? 0);
+
+  function goTo(path: string) {
+    setSearchOpen(false);
+    setQ('');
+    setDebouncedQ('');
+    navigate(path);
+  }
+
+  function logout() {
+    clearSession();
+    navigate('/login');
+  }
+
+  return (
+    <div className="flex min-h-screen w-full">
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] shrink-0 flex-col border-r transform transition duration-200 md:static md:translate-x-0 ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        style={{
+          background: 'var(--sidebar)',
+          borderColor: 'var(--sidebar-border)',
+          color: 'var(--sidebar-text)',
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        <div className="flex h-[64px] items-center justify-between gap-3 px-5">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg"
+              style={{ background: 'rgba(140, 160, 180, 0.12)' }}
+            >
+              <img src="/nakshatra-logo.png" alt="Nakshatra Beverages" className="h-full w-full object-contain p-0.5" />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-lg font-semibold leading-tight" style={{ color: 'var(--sidebar-heading)' }}>
+                Nakshatra
+              </div>
+              <div className="truncate text-xs" style={{ color: 'var(--sidebar-text)' }}>
+                Beverages
+              </div>
+            </div>
+          </div>
+          <button className="header-icon-btn md:hidden" onClick={() => setOpen(false)} aria-label="Close menu">
+            <X size={18} />
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 pb-4 pt-1">
+          {groups.map(([group, links]) => (
+            <div key={group} className="mb-4">
+              <div
+                className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em]"
+                style={{ color: 'var(--muted)' }}
+              >
+                {group}
+              </div>
+              <div className="space-y-0.5">
+                {links.map((link) => {
+                  const Icon = link.icon;
+                  return (
+                    <NavLink
+                      key={link.path}
+                      to={link.path}
+                      onClick={() => setOpen(false)}
+                      className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                    >
+                      <Icon className="nav-icon" strokeWidth={1.75} />
+                      <span>{link.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        <div className="border-t p-3 space-y-2" style={{ borderColor: 'var(--sidebar-border)' }}>
+          <button
+            className="sidebar-profile flex w-full items-center gap-3 rounded-[0.625rem] p-2 text-left transition"
+            onClick={() => navigate('/profile')}
+          >
+            <div
+              className="grid h-10 w-10 place-items-center rounded-full text-sm font-semibold"
+              style={{ background: 'rgba(140, 160, 180, 0.22)', color: 'var(--sidebar-heading)' }}
+            >
+              {initials || 'U'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold" style={{ color: 'var(--sidebar-heading)' }}>
+                {user?.firstName} {user?.lastName}
+              </div>
+              <div className="truncate text-xs capitalize" style={{ color: 'var(--sidebar-text)' }}>
+                {user?.role.replaceAll('_', ' ').toLowerCase()}
+              </div>
+            </div>
+          </button>
+          <button type="button" className="btn sidebar-logout flex w-full items-center justify-center gap-2" onClick={logout}>
+            <LogOut size={16} />
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {open ? <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setOpen(false)} /> : null}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header
+          className="sticky top-0 z-30 flex h-[64px] items-center gap-2 border-b px-4 md:px-5"
+          style={{
+            borderColor: 'var(--border)',
+            background: 'color-mix(in oklab, var(--bg) 92%, transparent)',
+            backdropFilter: 'blur(10px)',
+          }}
+        >
+          <button className="header-icon-btn md:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
+            <Menu size={18} />
+          </button>
+          <div className="relative flex-1 max-w-xl" ref={searchWrapRef}>
+            <input
+              ref={searchInputRef}
+              className="input header-search pr-10"
+              placeholder="Search KPIs, pages, plants, lines, products, WOs…"
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setSearchOpen(true);
+              }}
+              onFocus={() => setSearchOpen(true)}
+              aria-label="Global search"
+              autoComplete="off"
+            />
+            <Search
+              size={16}
+              strokeWidth={1.75}
+              className="pointer-events-none absolute right-3 top-1/2 z-[1] -translate-y-1/2"
+              style={{ color: '#7a8a9c' }}
+              aria-hidden
+            />
+
+            {searchOpen ? (
+              <div className="header-search-panel panel absolute left-0 right-0 top-[calc(100%+0.4rem)] z-50 max-h-[min(70vh,26rem)] overflow-y-auto p-3">
+                {q.trim().length === 0 ? (
+                  <div className="space-y-2 text-sm" style={{ color: 'var(--muted)' }}>
+                    <div className="font-medium" style={{ color: 'var(--text)' }}>
+                      What you can search
+                    </div>
+                    <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed">
+                      <li>KPIs — OEE, Availability, Performance, Quality, Downtime…</li>
+                      <li>Pages — Home, Dashboard, Work Orders…</li>
+                      <li>Plants &amp; lines — name or code</li>
+                      <li>Products — name or code</li>
+                      <li>Work orders — number or batch</li>
+                      {user?.role === 'ADMIN' ? <li>Users — name, email, employee ID</li> : null}
+                    </ul>
+                    <div className="pt-1 text-xs">Type at least 2 characters for records.</div>
+                  </div>
+                ) : null}
+
+                {q.trim().length === 1 ? (
+                  <div className="space-y-3 text-sm" style={{ color: 'var(--muted)' }}>
+                    <div>Keep typing… (min. 2 characters for records)</div>
+                    {renderKpiHits()}
+                    {pageHits.length > 0 ? (
+                      <div className="space-y-1">
+                        <div className="mb-1 text-xs uppercase">Pages</div>
+                        {pageHits.map((p) => (
+                          <button
+                            key={p.path}
+                            type="button"
+                            className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-[var(--panel-2)]"
+                            style={{ color: 'var(--text)' }}
+                            onClick={() => goTo(p.path)}
+                          >
+                            {p.label}
+                            <span className="ml-2 text-xs" style={{ color: 'var(--muted)' }}>
+                              {p.group}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {q.trim().length >= 2 ? (
+                  <div className="space-y-3 text-sm">
+                    {renderKpiHits()}
+                    {pageHits.length > 0 ? (
+                      <div>
+                        <div className="mb-1 text-xs uppercase" style={{ color: 'var(--muted)' }}>
+                          Pages
+                        </div>
+                        {pageHits.map((p) => (
+                          <button
+                            key={p.path}
+                            type="button"
+                            className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-[var(--panel-2)]"
+                            style={{ color: 'var(--text)' }}
+                            onClick={() => goTo(p.path)}
+                          >
+                            {p.label}
+                            <span className="ml-2 text-xs" style={{ color: 'var(--muted)' }}>
+                              {p.group}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {search.isFetching ? <div style={{ color: 'var(--muted)' }}>Searching records…</div> : null}
+
+                    {search.isError ? (
+                      <div style={{ color: 'var(--danger)' }}>Search failed. Check your connection and try again.</div>
+                    ) : null}
+
+                    {dataHits ? (
+                      <>
+                        {(
+                          [
+                            ['plants', 'Plants', dataHits.plants],
+                            ['lines', 'Lines', dataHits.lines],
+                            ['products', 'Products', dataHits.products],
+                            ['plans', 'Work orders', dataHits.plans],
+                            ['users', 'Users', dataHits.users],
+                          ] as const
+                        ).map(([key, label, rows]) =>
+                          rows.length === 0 ? null : (
+                            <div key={key}>
+                              <div className="mb-1 text-xs uppercase" style={{ color: 'var(--muted)' }}>
+                                {label}
+                              </div>
+                              {rows.map((item) => {
+                                const path =
+                                  key === 'plans'
+                                    ? '/plans'
+                                    : key === 'plants'
+                                      ? '/plants'
+                                      : key === 'lines'
+                                        ? '/lines'
+                                        : key === 'users'
+                                          ? '/users'
+                                          : '/products';
+                                const text =
+                                  key === 'plans'
+                                    ? formatWorkOrder((item as SearchPayload['plans'][0]).planNumber)
+                                    : key === 'users'
+                                      ? `${(item as SearchPayload['users'][0]).firstName} ${(item as SearchPayload['users'][0]).lastName}`
+                                      : (item as { name: string }).name;
+                                const sub =
+                                  key === 'plans'
+                                    ? (item as SearchPayload['plans'][0]).batchNumber
+                                    : key === 'users'
+                                      ? (item as SearchPayload['users'][0]).email
+                                      : (item as { code?: string }).code;
+                                return (
+                                  <button
+                                    key={item.id}
+                                    type="button"
+                                    className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-[var(--panel-2)]"
+                                    style={{ color: 'var(--text)' }}
+                                    onClick={() => goTo(path)}
+                                  >
+                                    {text}
+                                    {sub ? (
+                                      <span className="ml-2 text-xs" style={{ color: 'var(--muted)' }}>
+                                        {sub}
+                                      </span>
+                                    ) : null}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ),
+                        )}
+                        {!search.isFetching && pageHits.length === 0 && kpiHits.length === 0 && recordCount === 0 ? (
+                          <div style={{ color: 'var(--muted)' }}>No matches for “{debouncedQ}”</div>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          <div className="ml-auto flex items-center gap-1">
+            <button className="header-icon-btn relative" onClick={() => navigate('/notifications')} aria-label="Notifications">
+              <Bell size={18} strokeWidth={1.75} />
+              {unread > 0 ? (
+                <span
+                  className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-semibold text-white"
+                  style={{ background: 'var(--danger)' }}
+                >
+                  {unread}
+                </span>
+              ) : null}
+            </button>
+            <button className="header-icon-btn" onClick={toggle} aria-label="Toggle theme">
+              {theme === 'dark' ? <Sun size={18} strokeWidth={1.75} /> : <Moon size={18} strokeWidth={1.75} />}
+            </button>
+            <button className="header-icon-btn" title="Logout" onClick={logout} aria-label="Logout">
+              <LogOut size={18} strokeWidth={1.75} />
+            </button>
+            <button
+              className="ml-1 grid h-9 w-9 place-items-center rounded-full text-xs font-semibold text-white"
+              style={{ background: 'linear-gradient(135deg, #7367f0, #9e95f5)' }}
+              onClick={() => navigate('/profile')}
+              aria-label="Profile"
+            >
+              {initials || 'U'}
+            </button>
+          </div>
+        </header>
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-5">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}

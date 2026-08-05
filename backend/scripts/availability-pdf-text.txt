@@ -1,0 +1,61 @@
+pages 2
+---PAGE 1---
+Availability Loss Detail, BAXTER, First Shift
+1 message
+XL Enterprise <no-reply@xl.vorne.com> Wed, May 7, 2025 at 19:15
+To: vornereport.baxter@gmail.com
+Availability Loss Detail
+BAXTER
+This is the First Shift report for Wednesday, May 7, 2025. This report includes data from 4 of 5 work
+centers. Work centers not included are SVP Line (no data reported). The report was delayed by 3 hours, 15
+minutes and 7.07 seconds due to missing work centers.
+Aggregated Downtime
+Availability
+65.9%
+Down Time
+0:12:50
+Planned Stop Time
+5:02:27
+Production Time Detail
+Work
+Center Availability All
+Time
+Run
+Time
+Down
+Time
+Planned Stop
+Time
+Not Scheduled
+Time
+Ampoule
+Line 28.9% 8:00:01 2:08:19 0:12:50 5:02:27 0:36:22
+PFE-1 – 8:00:01 0:00:00 0:00:00 0:00:00 8:00:01
+PFE-2 100% 8:00:01 8:00:01 0:00:00 0:00:00 0:00:00
+VIAL Line – 8:00:01 0:00:00 0:00:00 0:00:00 8:00:01
+Top 5 Availability Loss by Reason
+Ampoule Line
+Reason Duration Counts
+● CIP/SIP 4:17:54 1
+● Post Filling Activity 0:44:32 1
+● Conveyor Belt Remove 0:12:50 1
+PFE-1
+Reason Duration Counts
+---PAGE 2---
+PFE-2
+Reason Duration Counts
+VIAL Line
+Reason Duration Counts
+Top 5 Availability Loss Events
+Ampoule Line
+Start Time Reason Duration
+11:42:05 AM ● CIP/SIP 4:17:54
+10:57:22 AM ● Post Filling Activity 0:44:32
+9:42:34 AM ● Conveyor Belt Remove 0:12:50
+PFE-1
+Start Time Reason Duration
+PFE-2
+Start Time Reason Duration
+VIAL Line
+Start Time Reason Duration
+Sent by XL Enterprise on behalf of BAXTER.
