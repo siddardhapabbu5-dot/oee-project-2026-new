@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { FileSpreadsheet } from 'lucide-react';
 import {
@@ -21,6 +21,7 @@ import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader, Badge } from '../c
 import { StatusBadge } from '../components/CrudPage';
 import { useMemo, useState } from 'react';
 import { formatWorkOrder } from '../lib/workOrder';
+import { metricColor, metricTone } from '../lib/metricBands';
 
 const COLORS = [
   'var(--chart-1)',
@@ -128,6 +129,7 @@ export function OeePage() {
         >('/dashboard/summary', { params: { from, to, ...(shiftId ? { shiftId } : {}) } })
       ).data.data,
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 
   const charts = useMemo(() => {
@@ -209,7 +211,29 @@ export function OeePage() {
     );
   }
 
-  if (summary.isLoading || !summary.data) return <LoadingBlock />;
+  if (summary.isLoading && !summary.data) return <LoadingBlock />;
+  if (summary.isError) {
+    return (
+      <div>
+        <PageHeader title="OEE Dashboard" subtitle="OEE = Availability × Performance × Quality" />
+        <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
+          <Field label="From Date">
+            <input className="input" type="date" value={from} max={todayLocal()} onChange={(e) => setFrom(e.target.value)} />
+          </Field>
+          <Field label="To Date">
+            <input className="input" type="date" value={to} max={todayLocal()} onChange={(e) => setTo(e.target.value)} />
+          </Field>
+          <button className="btn btn-secondary" type="button" onClick={() => void summary.refetch()}>
+            Retry
+          </button>
+        </div>
+        <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
+          Could not load OEE dashboard. Check that the API and PostgreSQL (Docker) are running, then click Retry.
+        </div>
+      </div>
+    );
+  }
+  if (!summary.data) return <LoadingBlock />;
   const k = summary.data.kpis;
   const c = charts;
 
@@ -260,10 +284,25 @@ export function OeePage() {
       </div>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="OEE" value={`${k.oee}%`} tone={k.oee >= 85 ? 'good' : k.oee >= 70 ? 'warn' : 'bad'} />
-        <KpiCard label="Availability" value={`${k.availability}%`} hint="Run Time ÷ Planned Time" />
-        <KpiCard label="Performance" value={`${k.performance}%`} hint="(Ideal Cycle × Count) ÷ Run Time" />
-        <KpiCard label="Quality" value={`${k.quality}%`} hint="Good Count ÷ Total Count" />
+        <KpiCard label="OEE" value={`${k.oee}%`} tone={metricTone('oee', k.oee)} />
+        <KpiCard
+          label="Availability"
+          value={`${k.availability}%`}
+          hint="Run Time ÷ Planned Time"
+          tone={metricTone('availability', k.availability)}
+        />
+        <KpiCard
+          label="Performance"
+          value={`${k.performance}%`}
+          hint="(Ideal Cycle × Count) ÷ Run Time"
+          tone={metricTone('performance', k.performance)}
+        />
+        <KpiCard
+          label="Quality"
+          value={`${k.quality}%`}
+          hint="Good Count ÷ Total Count"
+          tone={metricTone('quality', k.quality)}
+        />
       </div>
 
       <div className="panel mb-4 p-4 text-sm" style={{ color: 'var(--muted)' }}>
@@ -335,7 +374,7 @@ export function OeePage() {
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="Capacity Utilization" className="xl:col-span-2">
+        <ChartCard title="Capacity Utilisation" className="xl:col-span-2">
           <ResponsiveContainer>
             <LineChart data={c.capacityUtilization}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -343,12 +382,12 @@ export function OeePage() {
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
               <Tooltip
                 labelFormatter={(v) => fmtAxisDate(String(v))}
-                formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Utilization']}
+                formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Utilisation']}
               />
               <Line
                 type="monotone"
                 dataKey="utilization"
-                name="Utilization %"
+                name="Utilisation %"
                 stroke="var(--chart-1)"
                 strokeWidth={2}
                 dot={{ r: 3 }}
@@ -455,7 +494,7 @@ export function PlanVsActualPage() {
   if (report.isError || !report.data) {
     return (
       <div>
-        <PageHeader title="Production Plan vs Actual" subtitle="Brand & SKU wise attainment" />
+        <PageHeader title="Production Plan vs Actual" subtitle="Brand- and SKU-wise attainment" />
         <div className="panel p-6 text-sm" style={{ color: 'var(--muted)' }}>
           Failed to load Plan vs Actual. Check that the API is running.
         </div>
@@ -494,8 +533,8 @@ export function PlanVsActualPage() {
   return (
     <div>
       <PageHeader
-        title="Production Plan vs Actual Dashboard"
-        subtitle="Clustered column chart — Brand & SKU wise · Variance = Actual − Planned"
+        title="Production Plan vs Actual"
+        subtitle="Clustered column chart — brand- and SKU-wise · Variance = Actual − Planned"
         actions={
           <button className="btn btn-secondary" type="button" onClick={() => void downloadExcel()}>
             <FileSpreadsheet size={16} strokeWidth={1.75} />
@@ -590,7 +629,7 @@ export function PlanVsActualPage() {
         <KpiCard
           label="Achievement %"
           value={`${t.achievement}%`}
-          tone={t.achievement >= 95 ? 'good' : t.achievement >= 85 ? 'warn' : 'bad'}
+          tone={metricTone('achievement', t.achievement)}
         />
       </div>
 
@@ -654,7 +693,7 @@ export function PlanVsActualPage() {
                   <td style={{ color: r.variance >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                     {r.variance.toLocaleString()}
                   </td>
-                  <td>{r.achievement}%</td>
+                  <td style={{ color: metricColor('achievement', r.achievement) }}>{r.achievement}%</td>
                 </tr>
               ))
             )}
@@ -673,7 +712,9 @@ export function PlanVsActualPage() {
                 >
                   {t.variance.toLocaleString()}
                 </td>
-                <td className="font-semibold">{t.achievement}%</td>
+                <td className="font-semibold" style={{ color: metricColor('achievement', t.achievement) }}>
+                  {t.achievement}%
+                </td>
               </tr>
             </tfoot>
           ) : null}
@@ -1374,7 +1415,7 @@ export function ManpowerAnalysisPage() {
       <div>
         <PageHeader
           title="Manpower Analysis"
-          subtitle="Labour productivity, utilization & availability — with period filters"
+          subtitle="Labour productivity, utilisation & availability — with period filters"
         />
         {filters}
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
@@ -1394,7 +1435,7 @@ export function ManpowerAnalysisPage() {
       <div>
         <PageHeader
           title="Manpower Analysis"
-          subtitle="Labour productivity, utilization & availability — with period filters"
+          subtitle="Labour productivity, utilisation & availability — with period filters"
         />
         {filters}
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
@@ -1409,7 +1450,7 @@ export function ManpowerAnalysisPage() {
       <div>
         <PageHeader
           title="Manpower Analysis"
-          subtitle="Labour productivity, utilization & availability — with period filters"
+          subtitle="Labour productivity, utilisation & availability — with period filters"
         />
         {filters}
         <LoadingBlock />
@@ -1424,7 +1465,7 @@ export function ManpowerAnalysisPage() {
     <div>
       <PageHeader
         title="Manpower Analysis"
-        subtitle="Labour productivity, utilization & availability — with period filters"
+        subtitle="Labour productivity, utilisation & availability — with period filters"
       />
 
       {filters}
@@ -1447,7 +1488,7 @@ export function ManpowerAnalysisPage() {
           hint={`${k.labourHours} labour hours`}
         />
         <KpiCard
-          label="Labour Utilization"
+          label="Labour Utilisation"
           value={`${k.labourUtilization}%`}
           hint={`${k.workingHours} / ${k.availableHours} h`}
           tone={k.labourUtilization >= 85 ? 'good' : k.labourUtilization >= 70 ? 'warn' : 'bad'}

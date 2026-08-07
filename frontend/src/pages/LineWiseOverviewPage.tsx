@@ -5,6 +5,8 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,6 +14,7 @@ import {
 } from 'recharts';
 import api, { type ApiResponse } from '../lib/api';
 import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader, Badge } from '../components/ui';
+import { metricColor, metricTone } from '../lib/metricBands';
 
 type LineRow = {
   lineId: string;
@@ -69,6 +72,8 @@ type LineWisePayload = {
     oeeByLine: Array<{ line: string; oee: number; availability: number; performance: number; quality: number }>;
     planVsActual: Array<{ line: string; planned: number; actual: number }>;
     downtimeByLine: Array<{ line: string; downtime: number }>;
+    downtimeTrend: Array<{ date: string; downtime: number; planned: number; actual: number; oee: number }>;
+    weeklyTrend: Array<{ week: string; downtime: number; planned: number; actual: number; oee: number }>;
   };
 };
 
@@ -76,13 +81,6 @@ function statusTone(status: string): 'good' | 'warn' | 'bad' | 'default' {
   if (status === 'Completed' || status === 'Running') return 'good';
   if (status === 'Down') return 'bad';
   if (status === 'Idle') return 'warn';
-  return 'default';
-}
-
-function oeeTone(oee: number): 'good' | 'warn' | 'bad' | 'default' {
-  if (oee >= 85) return 'good';
-  if (oee >= 70) return 'warn';
-  if (oee > 0) return 'bad';
   return 'default';
 }
 
@@ -123,7 +121,7 @@ export default function LineWiseOverviewPage() {
   if (!rangeValid) {
     return (
       <div>
-        <PageHeader title="Line-wise Overview" subtitle="Per-line production & OEE analysis" />
+        <PageHeader title="Line-wise Overview" subtitle="Compare every line — planned vs actual, downtime, and OEE (A × P × Q)" />
         <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
           <Field label="From Date">
             <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -141,7 +139,7 @@ export default function LineWiseOverviewPage() {
   if (overview.isError || !overview.data) {
     return (
       <div>
-        <PageHeader title="Line-wise Overview" subtitle="Per-line production & OEE analysis" />
+        <PageHeader title="Line-wise Overview" subtitle="Compare every line — planned vs actual, downtime, and OEE (A × P × Q)" />
         <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
           <Field label="From Date">
             <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -165,7 +163,7 @@ export default function LineWiseOverviewPage() {
     <div>
       <PageHeader
         title="Line-wise Overview"
-        subtitle="Compare every line — Planned vs Actual, Downtime, and OEE (A × P × Q)"
+        subtitle="Compare every line — planned vs actual, downtime, and OEE (A × P × Q)"
       />
 
       <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
@@ -226,16 +224,24 @@ export default function LineWiseOverviewPage() {
       </div>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
-        <KpiCard label="Plant OEE" value={`${t.oee}%`} tone={oeeTone(t.oee)} hint="A × P × Q" />
-        <KpiCard label="Availability" value={`${t.availability}%`} />
-        <KpiCard label="Performance" value={`${t.performance}%`} />
-        <KpiCard label="Quality" value={`${t.quality}%`} />
+        <KpiCard label="Plant OEE" value={`${t.oee}%`} tone={metricTone('oee', t.oee)} hint="A × P × Q" />
+        <KpiCard
+          label="Availability"
+          value={`${t.availability}%`}
+          tone={metricTone('availability', t.availability)}
+        />
+        <KpiCard
+          label="Performance"
+          value={`${t.performance}%`}
+          tone={metricTone('performance', t.performance)}
+        />
+        <KpiCard label="Quality" value={`${t.quality}%`} tone={metricTone('quality', t.quality)} />
         <KpiCard label="Planned Cases" value={t.plannedCases.toLocaleString()} />
         <KpiCard label="Actual Cases" value={t.actualCases.toLocaleString()} />
         <KpiCard
-          label="Achievement"
+          label="Achievement %"
           value={`${t.achievement}%`}
-          tone={t.achievement >= 95 ? 'good' : t.achievement >= 85 ? 'warn' : 'bad'}
+          tone={metricTone('achievement', t.achievement)}
         />
         <KpiCard label="Downtime (min)" value={Math.round(t.downtimeMins).toLocaleString()} />
         <KpiCard label="Run Time (min)" value={Math.round(t.runTimeMins).toLocaleString()} />
@@ -275,16 +281,80 @@ export default function LineWiseOverviewPage() {
         </ChartCard>
       </div>
 
-      <div className="mb-4">
-        <ChartCard title="Line-wise Downtime (min)">
+      <div className="mb-4 grid gap-4 xl:grid-cols-2">
+        <ChartCard
+          title="Daily Downtime Trend (min)"
+          subtitle="How downtime changes day by day in the selected range — this is the trend view."
+        >
+          <ResponsiveContainer>
+            <LineChart data={d.charts.downtimeTrend ?? []}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="downtime"
+                name="Downtime (min)"
+                stroke="var(--chart-5)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard
+          title="Weekly Downtime Trend (min)"
+          subtitle="Week-01 = days 1–7, Week-02 = 8–14, Week-03 = 15–21, Week-04 = 22–end of month."
+        >
+          <ResponsiveContainer>
+            <BarChart data={d.charts.weeklyTrend ?? []}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="week" tick={{ fontSize: 11 }} />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="downtime" name="Downtime (min)" fill="var(--chart-5)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      <div className="mb-4 grid gap-4 xl:grid-cols-2">
+        <ChartCard
+          title="Downtime by Line (total min)"
+          subtitle="Comparison across lines for the whole date range — not a time trend. One bar = total DT for that line."
+        >
           <ResponsiveContainer>
             <BarChart data={d.charts.downtimeByLine}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="line" tick={{ fontSize: 11 }} />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="downtime" name="Downtime min" fill="var(--chart-5)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="downtime" name="Total DT (min)" fill="var(--chart-5)" radius={[4, 4, 0, 0]} />
             </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+        <ChartCard
+          title="Weekly OEE Trend (%)"
+          subtitle="Plant OEE by calendar week in the selected range."
+        >
+          <ResponsiveContainer>
+            <LineChart data={d.charts.weeklyTrend ?? []}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="week" tick={{ fontSize: 11 }} />
+              <YAxis domain={[0, 100]} />
+              <Tooltip />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="oee"
+                name="OEE %"
+                stroke="var(--chart-1)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            </LineChart>
           </ResponsiveContainer>
         </ChartCard>
       </div>
@@ -334,15 +404,17 @@ export default function LineWiseOverviewPage() {
                   <td>{l.planCount}</td>
                   <td>{l.plannedCases.toLocaleString()}</td>
                   <td>{l.actualCases.toLocaleString()}</td>
-                  <td>{l.achievement}%</td>
+                  <td style={{ color: metricColor('achievement', l.achievement) }}>{l.achievement}%</td>
                   <td>{l.goodCases.toLocaleString()}</td>
                   <td>{l.rejectCases.toLocaleString()}</td>
                   <td>{Math.round(l.downtimeMins)}</td>
                   <td>{Math.round(l.runTimeMins)}</td>
-                  <td>{l.availability}%</td>
-                  <td>{l.performance}%</td>
-                  <td>{l.quality}%</td>
-                  <td className="font-semibold">{l.oee}%</td>
+                  <td style={{ color: metricColor('availability', l.availability) }}>{l.availability}%</td>
+                  <td style={{ color: metricColor('performance', l.performance) }}>{l.performance}%</td>
+                  <td style={{ color: metricColor('quality', l.quality) }}>{l.quality}%</td>
+                  <td className="font-semibold" style={{ color: metricColor('oee', l.oee) }}>
+                    {l.oee}%
+                  </td>
                 </tr>
               ))
             )}

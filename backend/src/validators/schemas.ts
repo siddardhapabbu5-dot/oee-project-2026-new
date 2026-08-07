@@ -206,9 +206,10 @@ export const manpowerEntrySchema = z.object({
 export const wasteEntrySchema = z.object({
   wasteDate: z.string().min(8),
   materialId: z.string().min(1),
-  quantity: z.number().positive(),
+  quantity: z.number().nonnegative(), // wastage qty
+  actualQtyIssued: z.number().nonnegative().optional().nullable(),
   unit: z.string().optional().nullable(),
-  reason: z.string().min(1),
+  reason: z.string().optional().nullable(),
   remarks: z.string().optional().nullable(),
   shiftId: z.string().optional().nullable(),
   lineId: z.string().optional().nullable(),
@@ -216,6 +217,20 @@ export const wasteEntrySchema = z.object({
 });
 
 export const wasteEntryUpdateSchema = wasteEntrySchema.partial();
+
+export const salesEntrySchema = z.object({
+  saleDate: z.string().min(8),
+  plantId: z.string().optional().nullable(),
+  brandId: z.string().optional().nullable(),
+  productId: z.string().min(1),
+  skuId: z.string().min(1),
+  channel: z.enum(['DISTRIBUTOR', 'RETAIL', 'MODERN_TRADE', 'EXPORT', 'OTHER']).optional(),
+  customerName: z.string().optional().nullable(),
+  invoiceNo: z.string().optional().nullable(),
+  casesSold: z.number().positive(),
+  unitPrice: z.number().nonnegative().optional(),
+  remarks: z.string().optional().nullable(),
+});
 
 export const shiftClosingSchema = z.object({
   planId: z.string(),

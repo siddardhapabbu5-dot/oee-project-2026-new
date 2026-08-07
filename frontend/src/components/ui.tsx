@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Calendar, ChevronDown, ChevronUp, ChevronsUpDown, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, type LucideIcon } from 'lucide-react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 export function PageHeader({
@@ -38,29 +38,49 @@ export function KpiCard({
   label: string;
   value: string | number;
   hint?: string;
-  tone?: 'default' | 'good' | 'warn' | 'bad' | 'info';
+  tone?: 'default' | 'good' | 'warn' | 'bad' | 'info' | 'excellent' | 'fair' | 'average' | 'poor' | 'critical';
   icon?: LucideIcon;
 }) {
   const color =
-    tone === 'good'
-      ? 'var(--success)'
-      : tone === 'warn'
-        ? 'var(--warning)'
-        : tone === 'bad'
-          ? 'var(--danger)'
-          : tone === 'info'
-            ? 'var(--info)'
-            : 'var(--accent)';
+    tone === 'excellent'
+      ? 'var(--band-excellent)'
+      : tone === 'fair'
+        ? 'var(--band-good)'
+        : tone === 'average'
+          ? 'var(--band-average)'
+          : tone === 'poor'
+            ? 'var(--band-poor)'
+            : tone === 'critical'
+              ? 'var(--band-critical)'
+              : tone === 'good'
+                ? 'var(--success)'
+                : tone === 'warn'
+                  ? 'var(--warning)'
+                  : tone === 'bad'
+                    ? 'var(--danger)'
+                    : tone === 'info'
+                      ? 'var(--info)'
+                      : 'var(--accent)';
   const soft =
-    tone === 'good'
-      ? 'color-mix(in oklab, var(--success) 14%, transparent)'
-      : tone === 'warn'
-        ? 'color-mix(in oklab, var(--warning) 14%, transparent)'
-        : tone === 'bad'
-          ? 'color-mix(in oklab, var(--danger) 14%, transparent)'
-          : tone === 'info'
-            ? 'color-mix(in oklab, var(--info) 14%, transparent)'
-            : 'var(--accent-soft)';
+    tone === 'excellent'
+      ? 'color-mix(in oklab, var(--band-excellent) 14%, transparent)'
+      : tone === 'fair'
+        ? 'color-mix(in oklab, var(--band-good) 14%, transparent)'
+        : tone === 'average'
+          ? 'color-mix(in oklab, var(--band-average) 14%, transparent)'
+          : tone === 'poor'
+            ? 'color-mix(in oklab, var(--band-poor) 14%, transparent)'
+            : tone === 'critical'
+              ? 'color-mix(in oklab, var(--band-critical) 14%, transparent)'
+              : tone === 'good'
+                ? 'color-mix(in oklab, var(--success) 14%, transparent)'
+                : tone === 'warn'
+                  ? 'color-mix(in oklab, var(--warning) 14%, transparent)'
+                  : tone === 'bad'
+                    ? 'color-mix(in oklab, var(--danger) 14%, transparent)'
+                    : tone === 'info'
+                      ? 'color-mix(in oklab, var(--info) 14%, transparent)'
+                      : 'var(--accent-soft)';
 
   const valueColor = tone === 'default' ? 'var(--text)' : color;
 
@@ -95,18 +115,25 @@ export function KpiCard({
 
 export function ChartCard({
   title,
+  subtitle,
   children,
   className,
   bodyClassName,
 }: {
   title: string;
+  subtitle?: string;
   children: ReactNode;
   className?: string;
   bodyClassName?: string;
 }) {
   return (
     <div className={clsx('panel p-5', className)}>
-      <h3 className="mb-4 text-base font-medium">{title}</h3>
+      <h3 className={clsx('text-base font-medium', subtitle ? 'mb-1' : 'mb-4')}>{title}</h3>
+      {subtitle ? (
+        <p className="mb-4 text-xs" style={{ color: 'var(--muted)' }}>
+          {subtitle}
+        </p>
+      ) : null}
       <div className={clsx('h-64 w-full', bodyClassName)}>{children}</div>
     </div>
   );
@@ -187,7 +214,7 @@ export function SortableTh({
   );
 }
 
-/** Date cell with calendar icon (ledger-style). */
+/** Formatted date cell (ledger-style). */
 export function DateWithIcon({ value }: { value?: string | Date | null }) {
   if (!value) {
     return <span style={{ color: 'var(--muted)' }}>—</span>;
@@ -224,9 +251,8 @@ export function DateWithIcon({ value }: { value?: string | Date | null }) {
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap" title={title}>
-      <Calendar size={14} strokeWidth={1.75} style={{ color: 'var(--muted)', flexShrink: 0 }} aria-hidden />
-      <span>{label}</span>
+    <span className="whitespace-nowrap" title={title}>
+      {label}
     </span>
   );
 }
@@ -258,9 +284,9 @@ export function Modal({
   );
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <label className="mb-3 block text-sm">
+    <label className={clsx('mb-3 block text-sm last:mb-0', className)}>
       <span className="mb-1.5 block font-medium" style={{ color: 'var(--muted)' }}>
         {label}
       </span>

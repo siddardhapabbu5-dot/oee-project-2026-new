@@ -29,6 +29,9 @@ import {
   Recycle,
   PackageX,
   BookOpen,
+  CalendarDays,
+  CalendarRange,
+  ShoppingCart,
 } from 'lucide-react';
 import type { Role } from '../store';
 
@@ -43,7 +46,10 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Home', path: '/home', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: Home },
   { label: 'Dashboard', path: '/dashboard', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: LayoutDashboard },
+  { label: 'Sales Dashboard', path: '/sales-dashboard', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Overview', icon: ShoppingCart },
   { label: 'Line-wise Overview', path: '/line-wise', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: Monitor },
+  { label: 'Day-wise OEE', path: '/day-wise-oee', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: CalendarDays },
+  { label: 'Week-wise OEE', path: '/week-wise-oee', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: CalendarRange },
   { label: 'OEE Dashboard', path: '/oee', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Overview', icon: Gauge },
   { label: 'OEE Guidance', path: '/oee-guidance', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: BookOpen },
   { label: 'Plan vs Actual', path: '/plan-vs-actual', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Overview', icon: ChartColumnIncreasing },
@@ -58,14 +64,15 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Changeover Types', path: '/changeover-types', roles: ['ADMIN'], group: 'Master Data', icon: RefreshCw },
   { label: 'Work Orders', path: '/plans', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Planning', icon: ClipboardList },
   { label: 'Production Entries', path: '/production-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: HardHat },
-  { label: 'Waste Entries', path: '/waste-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: PackageX },
+  { label: 'Wastage Entries', path: '/waste-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: PackageX },
+  { label: 'Wastage Status', path: '/wastage-status', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: ClipboardList },
   { label: 'Changeover Details', path: '/changeover-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: ArrowLeftRight },
   { label: 'Approvals', path: '/approvals', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Shop Floor', icon: BadgeCheck },
   { label: 'Monitoring', path: '/monitoring', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: Activity },
   { label: 'Downtime Analysis', path: '/downtime-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Analytics', icon: TimerOff },
   { label: 'Changeover Analysis', path: '/changeover-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Analytics', icon: ArrowLeftRight },
   { label: 'Manpower Analysis', path: '/manpower-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: UsersRound },
-  { label: 'Waste Report', path: '/waste-report', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: Recycle },
+  { label: 'Wastage Report', path: '/waste-report', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: Recycle },
   { label: 'Reports', path: '/reports', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: FileBarChart2 },
   { label: 'Notifications', path: '/notifications', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'System', icon: Bell },
   { label: 'Audit Logs', path: '/audit-logs', roles: ['ADMIN'], group: 'System', icon: ScrollText },
@@ -89,6 +96,12 @@ export type SearchKpi = {
 
 export const SEARCH_KPIS: SearchKpi[] = [
   {
+    label: 'Sales Dashboard',
+    hint: 'Cases, revenue, brand & channel',
+    path: '/sales-dashboard',
+    keywords: ['sales', 'revenue', 'cases sold', 'invoice', 'channel', 'brand sales'],
+  },
+  {
     label: 'OEE',
     hint: 'Overall Equipment Effectiveness',
     path: '/oee',
@@ -108,7 +121,7 @@ export const SEARCH_KPIS: SearchKpi[] = [
   },
   {
     label: 'Quality',
-    hint: 'Good ÷ Total Count',
+    hint: 'Good Count ÷ Total Count',
     path: '/oee',
     keywords: ['quality', 'q', 'good cases', 'reject', 'rejects'],
   },
@@ -167,10 +180,10 @@ export const SEARCH_KPIS: SearchKpi[] = [
     keywords: ['ideal cycle', 'cycle time', 'ict'],
   },
   {
-    label: 'Capacity Utilization',
+    label: 'Capacity Utilisation',
     hint: 'Actual ÷ Planned capacity',
     path: '/oee',
-    keywords: ['capacity', 'utilization', 'capacity utilization'],
+    keywords: ['capacity', 'utilisation', 'utilization', 'capacity utilisation'],
   },
   {
     label: 'Plan vs Actual',
@@ -197,7 +210,13 @@ export const SEARCH_KPIS: SearchKpi[] = [
     keywords: ['manpower availability', 'headcount', 'staffing', 'operators'],
   },
   {
-    label: 'Waste Report',
+    label: 'Wastage Status',
+    hint: 'Work-order-wise pending / completed wastage',
+    path: '/wastage-status',
+    keywords: ['wastage status', 'waste pending', 'waste completed', 'work order wastage'],
+  },
+  {
+    label: 'Wastage Report',
     hint: 'Raw material waste dashboard',
     path: '/waste-report',
     keywords: ['waste', 'scrap', 'preform', 'bottles', 'cap', 'stickers', 'shrink film', 'raw material'],

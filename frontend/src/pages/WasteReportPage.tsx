@@ -16,6 +16,7 @@ import {
 import { PackageX, Plus, Recycle, TriangleAlert } from 'lucide-react';
 import api, { type ApiResponse } from '../lib/api';
 import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
+import { formatWorkOrder } from '../lib/workOrder';
 
 type WasteReport = {
   from: string;
@@ -31,13 +32,24 @@ type WasteReport = {
   byReason: Array<{ reason: string; quantity: number; count: number }>;
   dailyTrend: Array<{ date: string; quantity: number }>;
   byShift: Array<{ shift: string; quantity: number }>;
+  byWorkOrder: Array<{
+    planId: string;
+    planNumber: string;
+    date: string;
+    line: string;
+    shift: string;
+    quantity: number;
+    count: number;
+  }>;
   recent: Array<{
     id: string;
     wasteDate: string;
     quantity: number;
+    actualQtyIssued?: number | null;
     unit: string;
     reason: string;
     material: { name: string };
+    plan?: { planNumber?: string } | null;
     shift?: { name: string } | null;
     line?: { code?: string; name: string } | null;
   }>;
@@ -100,9 +112,9 @@ export default function WasteReportPage() {
   if (report.isError || !report.data) {
     return (
       <div>
-        <PageHeader title="Waste Report" subtitle="Raw material waste by Preform, Bottles, Cap, Stickers, Shrink Film" />
+        <PageHeader title="Wastage Report" subtitle="Raw material wastage by Preform, Bottles, Cap, Stickers, Shrink Film" />
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
-          Could not load waste report. Restart the API after the latest schema update, then try again.
+          Could not load wastage report. Restart the API after the latest schema update, then try again.
         </div>
       </div>
     );
@@ -113,12 +125,12 @@ export default function WasteReportPage() {
   return (
     <div>
       <PageHeader
-        title="Waste Report"
-        subtitle="Raw material waste — Preform, Bottles, Cap, Stickers & Shrink Film"
+        title="Wastage Report"
+        subtitle="Raw material wastage — Preform, Bottles, Cap, Stickers & Shrink Film"
         actions={
           <Link to="/waste-entries" className="btn btn-primary">
             <Plus size={16} strokeWidth={2} />
-            Add waste entry
+            Add wastage entry
           </Link>
         }
       />
@@ -153,14 +165,14 @@ export default function WasteReportPage() {
       </div>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Total Waste Qty" value={k.totalQuantity.toLocaleString()} icon={PackageX} tone="warn" />
+        <KpiCard label="Total Wastage Qty" value={k.totalQuantity.toLocaleString()} icon={PackageX} tone="warn" />
         <KpiCard label="Entries" value={k.totalEntries.toLocaleString()} icon={Recycle} />
         <KpiCard label="Top Material" value={k.topMaterial} icon={TriangleAlert} tone="bad" />
         <KpiCard label="Top Reason" value={k.topReason} />
       </div>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Waste by Material">
+        <ChartCard title="Wastage by Material">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={report.data.byMaterial}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -171,7 +183,7 @@ export default function WasteReportPage() {
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="Waste by Reason">
+        <ChartCard title="Wastage by Reason">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={report.data.byReason}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -185,7 +197,7 @@ export default function WasteReportPage() {
       </div>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <ChartCard title="Daily Waste Trend">
+        <ChartCard title="Daily Wastage Trend">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={daily}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -193,11 +205,11 @@ export default function WasteReportPage() {
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="quantity" name="Waste qty" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="quantity" name="Wastage qty" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="Waste by Shift">
+        <ChartCard title="Wastage by Shift">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={report.data.byShift}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -210,6 +222,56 @@ export default function WasteReportPage() {
         </ChartCard>
       </div>
 
+      <div className="panel mb-4 overflow-hidden">
+        <div className="border-b px-4 py-3 text-sm font-semibold" style={{ borderColor: 'var(--border)' }}>
+          Wastage by Work Order
+        </div>
+        <div className="overflow-x-auto">
+          <table className="wastage-entry-table w-full text-sm">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Work order</th>
+                <th>Line</th>
+                <th>Shift</th>
+                <th>Entries</th>
+                <th>Wastage qty</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(report.data.byWorkOrder ?? []).length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-6 text-center" style={{ color: 'var(--muted)' }}>
+                    No wastage logged for this period
+                  </td>
+                </tr>
+              ) : (
+                (report.data.byWorkOrder ?? []).map((r) => (
+                  <tr key={r.planId}>
+                    <td className="whitespace-nowrap">{fmtAxisDate(r.date)}</td>
+                    <td className="font-mono font-medium">{formatWorkOrder(r.planNumber)}</td>
+                    <td>{r.line}</td>
+                    <td>{r.shift}</td>
+                    <td className="tabular-nums">{r.count}</td>
+                    <td className="tabular-nums font-medium">{r.quantity.toLocaleString()}</td>
+                    <td>
+                      <Link
+                        className="btn btn-secondary"
+                        style={{ padding: '0.3rem 0.65rem', fontSize: '0.8rem' }}
+                        to={`/waste-entries?date=${r.date}&planId=${r.planId}&edit=1`}
+                      >
+                        Edit
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="panel overflow-hidden">
         <div className="border-b px-4 py-3 text-sm font-semibold" style={{ borderColor: 'var(--border)' }}>
           Recent entries
@@ -219,8 +281,10 @@ export default function WasteReportPage() {
             <thead>
               <tr>
                 <th>Date</th>
+                <th>Work order</th>
                 <th>Material</th>
-                <th>Qty</th>
+                <th>Issued</th>
+                <th>Wastage qty</th>
                 <th>Reason</th>
                 <th>Shift</th>
                 <th>Line</th>
@@ -229,17 +293,21 @@ export default function WasteReportPage() {
             <tbody>
               {report.data.recent.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center" style={{ color: 'var(--muted)' }}>
-                    No waste logged yet — add entries from Waste Entries.
+                  <td colSpan={8} className="py-6 text-center" style={{ color: 'var(--muted)' }}>
+                    No wastage logged yet — add entries from Wastage Entries.
                   </td>
                 </tr>
               ) : (
                 report.data.recent.map((r) => (
                   <tr key={r.id}>
                     <td>{String(r.wasteDate).slice(0, 10)}</td>
+                    <td className="font-mono">{formatWorkOrder(r.plan?.planNumber)}</td>
                     <td>{r.material.name}</td>
                     <td className="tabular-nums">
-                      {r.quantity} {r.unit}
+                      {r.actualQtyIssued != null ? Number(r.actualQtyIssued).toLocaleString() : '—'}
+                    </td>
+                    <td className="tabular-nums font-medium">
+                      {Number(r.quantity).toLocaleString()} {r.unit}
                     </td>
                     <td>{r.reason}</td>
                     <td>{r.shift?.name || '—'}</td>

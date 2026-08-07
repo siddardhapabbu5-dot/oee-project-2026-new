@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   Activity,
   AlertTriangle,
@@ -7,6 +7,7 @@ import {
   Boxes,
   CheckCircle2,
   Clock3,
+  FilterX,
   Gauge,
   Package,
   Percent,
@@ -32,6 +33,13 @@ import {
 import api, { type ApiResponse } from '../lib/api';
 import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 import { useAuthStore } from '../store';
+import {
+  downtimeColor,
+  downtimeTone,
+  lossCategoryColor,
+  metricColor,
+  metricTone,
+} from '../lib/metricBands';
 
 type Kpis = {
   plannedCases: number;
@@ -48,6 +56,8 @@ type Kpis = {
   capacityUtilization: number;
   runTimeMins?: number;
   plannedProductionTimeMins?: number;
+  scheduledProductionTimeMins?: number;
+  plannedLossMins?: number;
   idealCycleTimeMins?: number;
 };
 
@@ -62,22 +72,24 @@ type Charts = {
   capacityUtilization: Array<{ date: string; utilization: number }>;
 };
 
-const COLORS = [
-  'var(--chart-1)',
-  'var(--chart-2)',
-  'var(--chart-3)',
-  'var(--chart-4)',
-  'var(--chart-5)',
-  '#0d9488',
-  '#ea580c',
-  '#7c3aed',
-  '#db2777',
-  '#65a30d',
-  '#0284c7',
-  '#ca8a04',
+const PIE_FALLBACK = [
+  'var(--cat-mechanical)',
+  'var(--cat-electrical)',
+  'var(--cat-utility)',
+  'var(--cat-material)',
+  'var(--cat-quality-hold)',
+  'var(--cat-manpower)',
+  'var(--cat-planned-loss)',
+  'var(--pillar-availability)',
 ];
 
 const PIE_TOP_N = 7;
+
+function downtimeSliceColor(name: string, index: number) {
+  const mapped = lossCategoryColor(name);
+  if (mapped !== 'var(--muted)') return mapped;
+  return PIE_FALLBACK[index % PIE_FALLBACK.length];
+}
 
 function consolidatePieRows(rows: Array<{ name: string; minutes: number }>, topN = PIE_TOP_N) {
   const merged = new Map<string, { name: string; minutes: number }>();
@@ -146,6 +158,12 @@ export default function DashboardPage() {
   const [shiftId, setShiftId] = useState('');
   const rangeValid = Boolean(from && to && from <= to);
 
+  const clearFilters = () => {
+    setFrom(monthStart());
+    setTo(today());
+    setShiftId('');
+  };
+
   const shifts = useQuery({
     queryKey: ['shifts-dashboard'],
     queryFn: async () =>
@@ -163,6 +181,23 @@ export default function DashboardPage() {
         })
       ).data.data,
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const weekMonth = to.slice(0, 7);
+  const weekWise = useQuery({
+    queryKey: ['dashboard-week-wise', weekMonth],
+    enabled: rangeValid && Boolean(weekMonth),
+    queryFn: async () =>
+      (
+        await api.get<
+          ApiResponse<{
+            charts: { oeeByWeek: Array<{ week: string; oee: number; availability: number; performance: number; quality: number }> };
+          }>
+        >('/dashboard/week-wise', { params: { month: weekMonth } })
+      ).data.data,
+    staleTime: 120_000,
+    placeholderData: keepPreviousData,
   });
 
   const chartData = useMemo(() => {
@@ -180,7 +215,7 @@ export default function DashboardPage() {
       };
     }
     return {
-      planVsActual: fillDays(from, to, c.planVsActual, (date) => ({ date, planned: 0, actual: 0 })),
+      planVsActual: (c.planVsActual ?? []).filter((r) => (r.planned || 0) > 0 || (r.actual || 0) > 0),
       dailyTrend: fillDays(from, to, c.dailyTrend, (date) => ({ date, actual: 0, good: 0 })),
       oeeTrend: fillDays(from, to, c.oeeTrend, (date) => ({ date, oee: 0 })),
       capacityUtilization: fillDays(from, to, c.capacityUtilization, (date) => ({
@@ -238,6 +273,17 @@ export default function DashboardPage() {
               ))}
             </select>
           </Field>
+          <Field label={'\u00a0'}>
+            <button
+              className="btn btn-secondary inline-flex items-center gap-2"
+              type="button"
+              onClick={clearFilters}
+              title="Reset to month start → today"
+            >
+              <FilterX size={16} strokeWidth={1.75} />
+              Clear
+            </button>
+          </Field>
         </div>
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
           From date must be on or before To date.
@@ -246,7 +292,68 @@ export default function DashboardPage() {
     );
   }
 
-  if (summary.isLoading || !summary.data) return <LoadingBlock />;
+  if (summary.isLoading && !summary.data) return <LoadingBlock />;
+  if (summary.isError) {
+    return (
+      <div>
+        <PageHeader
+          title={`${user?.role === 'LINE_SUPERVISOR' ? 'Line' : 'Plant'} Dashboard`}
+          subtitle="OEE = Availability × Performance × Quality"
+        />
+        <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
+          <Field label="From Date">
+            <input
+              className="input"
+              type="date"
+              value={from}
+              max={today()}
+              onChange={(e) => {
+                const v = e.target.value;
+                setFrom(v);
+                if (to && v > to) setTo(v);
+              }}
+            />
+          </Field>
+          <Field label="To Date">
+            <input
+              className="input"
+              type="date"
+              value={to}
+              max={today()}
+              onChange={(e) => {
+                const v = e.target.value;
+                setTo(v);
+                if (from && v < from) setFrom(v);
+              }}
+            />
+          </Field>
+          <Field label="Shift">
+            <select className="input min-w-[10rem]" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+              <option value="">All shifts</option>
+              {(shifts.data ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={'\u00a0'}>
+            <button
+              className="btn btn-secondary inline-flex items-center gap-2"
+              type="button"
+              onClick={() => void summary.refetch()}
+            >
+              Retry
+            </button>
+          </Field>
+        </div>
+        <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
+          Could not load dashboard. Check that the API and PostgreSQL are running, then click Retry.
+        </div>
+      </div>
+    );
+  }
+  if (!summary.data) return <LoadingBlock />;
   const k = summary.data.kpis;
   const c = chartData;
 
@@ -294,6 +401,22 @@ export default function DashboardPage() {
             ))}
           </select>
         </Field>
+        <Field label={'\u00a0'}>
+          <button
+            className="btn btn-secondary inline-flex items-center gap-2"
+            type="button"
+            onClick={clearFilters}
+            title="Reset to month start → today"
+          >
+            <FilterX size={16} strokeWidth={1.75} />
+            Clear
+          </button>
+        </Field>
+        {summary.isFetching ? (
+          <div className="pb-2 text-xs" style={{ color: 'var(--muted)' }}>
+            Updating…
+          </div>
+        ) : null}
       </div>
 
       <div className="mb-5 grid gap-4 xl:grid-cols-12">
@@ -301,28 +424,39 @@ export default function DashboardPage() {
           <div className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
             Overall Equipment Effectiveness
           </div>
-          <div className="mt-2 text-5xl font-semibold tracking-tight" style={{ color: 'var(--accent)' }}>
+          <div className="mt-2 text-5xl font-semibold tracking-tight" style={{ color: metricColor('oee', k.oee) }}>
             {k.oee}%
           </div>
           <div className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
             A × P × Q
           </div>
           <div className="mt-5 grid grid-cols-3 gap-2">
-            {[
-              { label: 'Availability', value: `${k.availability}%` },
-              { label: 'Performance', value: `${k.performance}%` },
-              { label: 'Quality', value: `${k.quality}%` },
-            ].map((item) => (
+            {(
+              [
+                { label: 'Availability', value: k.availability, kind: 'availability' as const },
+                { label: 'Performance', value: k.performance, kind: 'performance' as const },
+                { label: 'Quality', value: k.quality, kind: 'quality' as const },
+              ] as const
+            ).map((item) => (
               <div
                 key={item.label}
                 className="rounded-lg px-3 py-2"
-                style={{ background: 'var(--accent-soft)' }}
+                style={{
+                  background: `color-mix(in oklab, ${metricColor(item.kind, item.value)} 14%, transparent)`,
+                  boxShadow: `inset 3px 0 0 ${
+                    item.kind === 'availability'
+                      ? 'var(--pillar-availability)'
+                      : item.kind === 'performance'
+                        ? 'var(--pillar-performance)'
+                        : 'var(--pillar-quality)'
+                  }`,
+                }}
               >
                 <div className="text-[11px]" style={{ color: 'var(--muted)' }}>
                   {item.label}
                 </div>
-                <div className="mt-0.5 text-sm font-semibold" style={{ color: 'var(--accent)' }}>
-                  {item.value}
+                <div className="mt-0.5 text-sm font-semibold" style={{ color: metricColor(item.kind, item.value) }}>
+                  {item.value}%
                 </div>
               </div>
             ))}
@@ -333,16 +467,21 @@ export default function DashboardPage() {
               <span className="font-semibold" style={{ color: 'var(--text)' }}>
                 {k.plannedProductionTimeMins ?? '—'} min
               </span>
+              {k.plannedLossMins && k.plannedLossMins > 0 ? (
+                <span className="mt-0.5 block text-[10px]">
+                  ({k.scheduledProductionTimeMins ?? '—'} − {k.plannedLossMins} PPL)
+                </span>
+              ) : null}
             </div>
             <div>
-              Run:{' '}
+              Operating:{' '}
               <span className="font-semibold" style={{ color: 'var(--text)' }}>
                 {Math.round(k.runTimeMins ?? 0)} min
               </span>
             </div>
             <div>
-              Downtime:{' '}
-              <span className="font-semibold" style={{ color: 'var(--text)' }}>
+              Unplanned DT:{' '}
+              <span className="font-semibold" style={{ color: downtimeColor(k.downtime) }}>
                 {Math.round(k.downtime)} min
               </span>
             </div>
@@ -361,7 +500,7 @@ export default function DashboardPage() {
           <KpiCard
             label="Achievement %"
             value={`${k.achievement}%`}
-            tone={k.achievement >= 95 ? 'good' : k.achievement >= 85 ? 'warn' : 'bad'}
+            tone={metricTone('achievement', k.achievement)}
             icon={Target}
           />
           <KpiCard label="Production Loss" value={k.productionLoss.toLocaleString()} tone="warn" icon={AlertTriangle} />
@@ -371,12 +510,44 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        <KpiCard label="Availability" value={`${k.availability}%`} hint="Run Time ÷ Planned Time" icon={Activity} tone="info" />
-        <KpiCard label="Performance" value={`${k.performance}%`} hint="(Ideal Cycle × Count) ÷ Run Time" icon={Gauge} />
-        <KpiCard label="Quality" value={`${k.quality}%`} hint="Good ÷ Total Count" icon={Percent} tone="good" />
+        <KpiCard
+          label="Availability"
+          value={`${k.availability}%`}
+          hint="Operating ÷ (Scheduled − PPL)"
+          icon={Activity}
+          tone={metricTone('availability', k.availability)}
+        />
+        <KpiCard
+          label="Performance"
+          value={`${k.performance}%`}
+          hint="(Ideal Cycle × Count) ÷ Operating Time"
+          icon={Gauge}
+          tone={metricTone('performance', k.performance)}
+        />
+        <KpiCard
+          label="Quality"
+          value={`${k.quality}%`}
+          hint="Good Count ÷ Total Count"
+          icon={Percent}
+          tone={metricTone('quality', k.quality)}
+        />
         <KpiCard label="Capacity Util." value={`${k.capacityUtilization}%`} hint="Actual ÷ Planned Cases" icon={BarChart3} />
-        <KpiCard label="Downtime (min)" value={Math.round(k.downtime).toLocaleString()} icon={Timer} tone="warn" />
-        <KpiCard label="Run Time (min)" value={Math.round(k.runTimeMins ?? 0).toLocaleString()} icon={Clock3} />
+        <KpiCard
+          label="Downtime (min)"
+          value={Math.round(k.downtime).toLocaleString()}
+          icon={Timer}
+          tone={downtimeTone(k.downtime)}
+          hint={
+            k.downtime <= 5
+              ? '0–5 min · Excellent'
+              : k.downtime <= 15
+                ? '6–15 min · Good'
+                : k.downtime <= 30
+                  ? '16–30 min · Average'
+                  : '>30 min · Poor'
+          }
+        />
+        <KpiCard label="Operating Time (min)" value={Math.round(k.runTimeMins ?? 0).toLocaleString()} icon={Clock3} />
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
@@ -443,6 +614,21 @@ export default function DashboardPage() {
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
+        <ChartCard title={`Weekly OEE Trend (${weekMonth})`}>
+          <ResponsiveContainer>
+            <BarChart data={weekWise.data?.charts.oeeByWeek ?? []}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="week" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="oee" name="OEE %" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="availability" name="A %" fill="var(--pillar-availability)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="performance" name="P %" fill="var(--pillar-performance)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="quality" name="Q %" fill="var(--pillar-quality)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
         <ChartCard title="Downtime by Category" bodyClassName="h-auto min-h-[18rem]">
           {c.downtimeByCategory.length === 0 ? (
             <div className="flex h-40 items-center justify-center text-sm" style={{ color: 'var(--muted)' }}>
@@ -465,8 +651,8 @@ export default function DashboardPage() {
                       stroke="var(--panel)"
                       strokeWidth={2}
                     >
-                      {c.downtimeByCategory.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      {c.downtimeByCategory.map((row, i) => (
+                        <Cell key={row.name} fill={downtimeSliceColor(row.name, i)} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -487,7 +673,7 @@ export default function DashboardPage() {
                     <li key={row.name} className="flex items-center gap-2">
                       <span
                         className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                        style={{ background: COLORS[i % COLORS.length] }}
+                        style={{ background: downtimeSliceColor(row.name, i) }}
                       />
                       <span className="min-w-0 flex-1 truncate" title={row.name} style={{ color: 'var(--text)' }}>
                         {row.name}
@@ -523,7 +709,7 @@ export default function DashboardPage() {
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="Capacity Utilization">
+        <ChartCard title="Capacity Utilisation">
           <ResponsiveContainer>
             <LineChart data={c.capacityUtilization}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -531,12 +717,12 @@ export default function DashboardPage() {
               <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
               <Tooltip
                 labelFormatter={(v) => fmtAxisDate(String(v))}
-                formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Utilization']}
+                formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Utilisation']}
               />
               <Line
                 type="monotone"
                 dataKey="utilization"
-                name="Utilization %"
+                name="Utilisation %"
                 stroke="var(--chart-2)"
                 strokeWidth={2}
                 dot={{ r: 3 }}

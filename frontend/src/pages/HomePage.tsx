@@ -77,7 +77,7 @@ export default function HomePage() {
               View OEE
             </Link>
             <Link to="/dashboard" className="home-btn home-btn--ghost">
-              Plant dashboard
+              Plant Dashboard
             </Link>
           </div>
           <p className="home-greet">Welcome back, {name}</p>

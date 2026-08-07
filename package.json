@@ -4,16 +4,17 @@
   "private": true,
   "description": "Enterprise Production Management Web Application (MES/ERP)",
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "npm run db:up && npm run db:wait && concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
     "build": "npm run build --prefix backend && npm run build --prefix frontend",
     "db:up": "docker compose up -d",
+    "db:wait": "npm run db:wait --prefix backend",
     "db:down": "docker compose down",
     "db:migrate": "npm run prisma:migrate --prefix backend",
     "db:seed": "npm run prisma:seed --prefix backend",
     "db:reset": "npm run prisma:reset --prefix backend",
-    "setup": "npm install && npm install --prefix backend && npm install --prefix frontend && npm run db:migrate && npm run db:seed"
+    "setup": "npm install && npm install --prefix backend && npm install --prefix frontend && npm run db:up && npm run db:wait && npm run db:migrate && npm run db:seed"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api, { type ApiResponse } from '../lib/api';
-import { DateWithIcon, Field, IconButton, LoadingBlock, PageHeader, KpiCard } from '../components/ui';
-import { StatusBadge } from '../components/CrudPage';
+import { Field, IconButton, LoadingBlock, PageHeader, KpiCard } from '../components/ui';
 import { formatWorkOrder } from '../lib/workOrder';
+import { metricColor } from '../lib/metricBands';
 
 type PlanDetail = {
   id: string;
@@ -18,7 +18,7 @@ type PlanDetail = {
   plannedEndTime: string;
   batchNumber: string;
   product: { id: string; name: string; brand?: { id: string; name: string } | null };
-  sku: { id: string; code: string; name?: string; packVolume?: string | null };
+  sku: { id: string; code: string; name?: string; packVolume?: string | null; packSize?: number | null };
   line: { id: string; name: string; code?: string };
   shift: { id: string; name: string; code?: string };
   productionEntries: Array<{
@@ -732,7 +732,21 @@ export default function ProductionEntriesPage() {
   const dtMins = p?.downtimeEntries.reduce((s, d) => s + d.durationMins, 0) ?? 0;
 
   const brandName = p?.product?.brand?.name || '—';
-  const skuLabel = p?.sku?.packVolume || p?.sku?.name || p?.sku?.code || '—';
+  const bottleSize = p?.sku?.packVolume || p?.sku?.name || p?.sku?.code || '—';
+  const packSize =
+    p?.sku?.packSize != null && Number(p.sku.packSize) > 0
+      ? Number(p.sku.packSize)
+      : (() => {
+          const v = (p?.sku?.packVolume || '').toUpperCase();
+          if (v.includes('200')) return 36;
+          if (v.includes('250')) return 30;
+          if (v.includes('300') || v.includes('500')) return 24;
+          if (v.includes('750') || v.includes('1000')) return 12;
+          if (v.includes('2000')) return 6;
+          if (v.includes('JAR')) return 1;
+          return null;
+        })();
+  const skuLabel = bottleSize;
 
   return (
     <div>
@@ -865,12 +879,20 @@ export default function ProductionEntriesPage() {
         <>
           <div className="panel mb-4 p-4">
             <h3 className="mb-3 font-semibold">Plan View (Automatic)</h3>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
               <div>
                 <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
                   Date
                 </div>
-                <div className="mt-1 font-medium"><DateWithIcon value={p.productionDate} /></div>
+                <div className="mt-1 font-medium whitespace-nowrap">
+                  {(() => {
+                    const raw = String(p.productionDate).slice(0, 10);
+                    const d = new Date(`${raw}T12:00:00`);
+                    return Number.isNaN(d.getTime())
+                      ? raw
+                      : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                  })()}
+                </div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
@@ -886,11 +908,21 @@ export default function ProductionEntriesPage() {
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
-                  Product & SKU
+                  Product
                 </div>
-                <div className="mt-1 font-medium">
-                  {p.product?.name || '—'} · {skuLabel}
+                <div className="mt-1 font-medium">{p.product?.name || '—'}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                  Bottle Size
                 </div>
+                <div className="mt-1 font-medium">{bottleSize}</div>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                  Pack Size
+                </div>
+                <div className="mt-1 font-medium">{packSize != null ? packSize : '—'}</div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
@@ -1148,19 +1180,18 @@ export default function ProductionEntriesPage() {
               <div className="table-wrap fit-cols">
                 <table className="data entry-log">
                   <colgroup>
-                    <col style={{ width: '9%' }} />
-                    <col style={{ width: '7%' }} />
-                    <col style={{ width: '5%' }} />
-                    <col style={{ width: '5%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '7%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '5%' }} />
-                    <col style={{ width: '5%' }} />
-                    <col style={{ width: '5%' }} />
-                    <col style={{ width: '5%' }} />
-                    <col style={{ width: '7%' }} />
                     <col style={{ width: '10%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '6%' }} />
+                    <col style={{ width: '6%' }} />
+                    <col style={{ width: '7%' }} />
+                    <col style={{ width: '7%' }} />
+                    <col style={{ width: '6%' }} />
+                    <col style={{ width: '6%' }} />
+                    <col style={{ width: '6%' }} />
+                    <col style={{ width: '6%' }} />
+                    <col style={{ width: '6%' }} />
+                    <col style={{ width: '8%' }} />
                     <col style={{ width: '5.25rem' }} />
                   </colgroup>
                   <thead>
@@ -1177,7 +1208,6 @@ export default function ProductionEntriesPage() {
                       <th title="Downtime (Min)">DT</th>
                       <th title="Running Time (Min)">Run</th>
                       <th title="OEE = Availability × Performance × Quality">OEE %</th>
-                      <th title="Status">Status</th>
                       <th className="col-actions">Actions</th>
                     </tr>
                   </thead>
@@ -1191,10 +1221,9 @@ export default function ProductionEntriesPage() {
                         performance: 0,
                         quality: 0,
                       };
-                      const oeeTone =
-                        metrics.oee >= 85 ? 'var(--success)' : metrics.oee >= 70 ? 'var(--warning)' : metrics.oee > 0 ? 'var(--danger)' : 'var(--muted)';
+                      const oeeTone = metricColor('oee', metrics.oee);
                       return (
-                      <tr key={e.id} className={editingEntryId === e.id ? 'bg-blue-50/40' : undefined}>
+                      <tr key={e.id} className={editingEntryId === e.id ? 'row-editing' : undefined}>
                         <td title={brandName}>{brandName}</td>
                         <td title={skuLabel}>{skuLabel}</td>
                         <td>{formatTime24(e.hourStart)}</td>
@@ -1212,9 +1241,6 @@ export default function ProductionEntriesPage() {
                           title={`A ${metrics.availability}% × P ${metrics.performance}% × Q ${metrics.quality}%`}
                         >
                           {metrics.oee}%
-                        </td>
-                        <td title={e.status}>
-                          <StatusBadge status={e.status} />
                         </td>
                         <td className="col-actions">
                           <div className="row-actions">
@@ -1239,7 +1265,7 @@ export default function ProductionEntriesPage() {
                     })}
                     {hourlyLog.length === 0 ? (
                       <tr>
-                        <td colSpan={14} style={{ color: 'var(--muted)' }}>
+                        <td colSpan={13} style={{ color: 'var(--muted)' }}>
                           No hourly entries yet
                         </td>
                       </tr>
@@ -1277,7 +1303,7 @@ export default function ProductionEntriesPage() {
                   </thead>
                   <tbody>
                     {downtimeLog.map((d) => (
-                      <tr key={d.id} className={editingDowntimeId === d.id ? 'bg-blue-50/40' : undefined}>
+                      <tr key={d.id} className={editingDowntimeId === d.id ? 'row-editing' : undefined}>
                         <td title={d.machine?.code || d.machine?.name || ''}>{d.machine?.code || d.machine?.name || '—'}</td>
                         <td className="wrap" title={d.category?.name || ''}>{d.category?.name || '—'}</td>
                         <td className="wrap" title={d.reason?.name || ''}>{d.reason?.name || '—'}</td>

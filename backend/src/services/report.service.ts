@@ -5,7 +5,9 @@ import type { AuthUser } from '../middleware/auth.js';
 import {
   calcAchievement,
   computeOeeMetrics,
+  splitDowntimeMins,
 } from '../utils/oee.js';
+import { calendarDateRange, toCalendarDate } from '../utils/dates.js';
 
 function planScope(user?: AuthUser) {
   if (!user) return {};
@@ -23,9 +25,7 @@ export async function buildReportRows(
   filters: { from?: string; to?: string; plantId?: string; lineId?: string; shiftId?: string },
   user?: AuthUser,
 ) {
-  const start = filters.from ? new Date(filters.from) : new Date(new Date().setDate(new Date().getDate() - 7));
-  const end = filters.to ? new Date(filters.to) : new Date();
-  end.setHours(23, 59, 59, 999);
+  const { start, end } = calendarDateRange(filters.from, filters.to, 7);
 
   const plans = await prisma.productionPlan.findMany({
     where: {
@@ -66,17 +66,19 @@ export async function buildReportRows(
         const actual = p.productionEntries.reduce((s, e) => s + e.actualCases, 0);
         const good = p.productionEntries.reduce((s, e) => s + e.goodCases, 0);
         const reject = p.productionEntries.reduce((s, e) => s + e.rejectCases, 0);
-        const downtime = p.downtimeEntries.reduce((s, e) => s + e.durationMins, 0);
+        const split = splitDowntimeMins(p.downtimeEntries);
         const metrics = computeOeeMetrics({
           plannedProductionTimeMins: p.plannedOperatingMins,
-          downtimeMins: downtime,
+          downtimeMins: split.totalDowntimeMins,
+          plannedLossMins: split.plannedLossMins,
+          unplannedDowntimeMins: split.unplannedDowntimeMins,
           plannedCount: p.plannedCases,
           totalCount: actual || good + reject,
           goodCount: good,
           capacityCph: p.line.capacityCph,
         });
         return {
-          date: p.productionDate.toISOString().slice(0, 10),
+          date: toCalendarDate(p.productionDate),
           planNumber: p.planNumber,
           plant: p.plant.name,
           line: p.line.name,
@@ -90,7 +92,9 @@ export async function buildReportRows(
           achievement: calcAchievement(p.plannedCases, actual),
           good,
           reject,
-          downtime,
+          downtime: split.unplannedDowntimeMins,
+          plannedLoss: split.plannedLossMins,
+          plannedTime: metrics.plannedProductionTimeMins,
           runTime: metrics.runTimeMins,
           availability: metrics.availability,
           performance: metrics.performance,
@@ -101,7 +105,7 @@ export async function buildReportRows(
     case 'downtime':
       return plans.flatMap((p) =>
         p.downtimeEntries.map((d) => ({
-          date: p.productionDate.toISOString().slice(0, 10),
+          date: toCalendarDate(p.productionDate),
           planNumber: p.planNumber,
           line: p.line.name,
           machine: d.machine?.name ?? '',
@@ -116,7 +120,7 @@ export async function buildReportRows(
     case 'changeover':
       return plans.flatMap((p) =>
         p.changeoverEntries.map((c) => ({
-          date: p.productionDate.toISOString().slice(0, 10),
+          date: toCalendarDate(p.productionDate),
           planNumber: p.planNumber,
           line: p.line.name,
           type: c.changeoverType.name,

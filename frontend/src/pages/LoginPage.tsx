@@ -46,7 +46,7 @@ export default function LoginPage() {
         className="absolute inset-0"
         style={{
           background:
-            'linear-gradient(180deg, rgba(8,24,40,0.35) 0%, rgba(8,24,40,0.15) 40%, rgba(8,18,28,0.55) 100%)',
+            'linear-gradient(160deg, rgba(12, 40, 58, 0.28) 0%, rgba(20, 55, 72, 0.12) 45%, rgba(8, 28, 42, 0.35) 100%)',
         }}
         aria-hidden
       />
@@ -60,27 +60,21 @@ export default function LoginPage() {
           <img
             src="/nakshatra-logo.png"
             alt="Nakshatra Beverages"
-            className="mx-auto mb-4 h-12 w-auto object-contain drop-shadow-md"
+            className="login-logo mx-auto mb-5 h-16 w-auto object-contain sm:h-[4.5rem]"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = 'none';
             }}
           />
           <div
-            className="text-[11px] font-semibold uppercase tracking-[0.35em] text-white/75"
+            className="login-brand text-[0.8rem] font-semibold uppercase tracking-[0.28em] sm:text-[0.88rem] sm:tracking-[0.32em]"
             style={{ fontFamily: '"Outfit", var(--font-sans)' }}
           >
             Nakshatra Beverages
           </div>
-          <h1
-            className="mt-2 text-[2.35rem] font-light lowercase tracking-wide text-white"
-            style={{ fontFamily: '"Outfit", var(--font-sans)', animation: 'loginFade 900ms ease both 120ms' }}
-          >
-            login
-          </h1>
         </div>
 
         <label className="login-field mb-6 block">
-          <span className="mb-2 block text-sm text-white/90">Username</span>
+          <span className="login-label mb-2 block text-sm">Username</span>
           <input
             type="email"
             autoComplete="username"
@@ -93,7 +87,7 @@ export default function LoginPage() {
         </label>
 
         <label className="login-field mb-5 block">
-          <span className="mb-2 block text-sm text-white/90">Password</span>
+          <span className="login-label mb-2 block text-sm">Password</span>
           <input
             type="password"
             autoComplete="current-password"
@@ -105,7 +99,7 @@ export default function LoginPage() {
           />
         </label>
 
-        <div className="mb-7 flex items-center justify-between gap-3 text-sm text-white/90">
+        <div className="login-meta mb-7 flex items-center justify-between gap-3 text-sm">
           <label className="inline-flex cursor-pointer items-center gap-2 select-none">
             <input
               type="checkbox"
@@ -117,7 +111,7 @@ export default function LoginPage() {
           </label>
           <button
             type="button"
-            className="text-white/85 underline-offset-2 hover:underline"
+            className="login-link underline-offset-2 hover:underline"
             onClick={() => toast('Contact your admin to reset the password.')}
           >
             Forgot Password?
@@ -128,15 +122,12 @@ export default function LoginPage() {
           {loading ? 'Signing in…' : 'Login'}
         </button>
 
-        <div className="mt-7 text-center text-sm text-white/80">
-          <button type="button" className="hover:text-white" onClick={() => setShowDemo((v) => !v)}>
-            {showDemo ? 'Hide demo users' : "Need a demo account? Show users"}
+        <div className="login-footer mt-7 text-center text-sm">
+          <button type="button" className="login-link" onClick={() => setShowDemo((v) => !v)}>
+            {showDemo ? 'Hide demo users' : 'Need a demo account? Show users'}
           </button>
           {showDemo ? (
-            <div
-              className="mt-3 rounded-xl border border-white/20 bg-black/20 px-3 py-2 text-left text-xs text-white/85 backdrop-blur-sm"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
+            <div className="login-demo mt-3 rounded-xl px-3 py-2 text-left text-xs" style={{ fontFamily: 'var(--font-mono)' }}>
               Password: Password@123
               <div className="mt-1 space-y-0.5">
                 <div>admin@pms.local</div>
@@ -151,4 +142,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

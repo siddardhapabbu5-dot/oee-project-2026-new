@@ -1,25 +1,21 @@
 import { prisma } from '../config/prisma.js';
 import type { AuthUser } from '../middleware/auth.js';
 import type { Prisma } from '@prisma/client';
-import ExcelJS from 'exceljs';
 import {
   calcAchievement,
   calcCapacityUtilization,
   calcLoss,
   computeOeeMetrics,
+  isPlannedProductionLossCategory,
 } from '../utils/oee.js';
+import { calendarDateRange, toCalendarDate } from '../utils/dates.js';
 
 function dateRange(from?: string, to?: string) {
-  // Default 14 days — keeps dashboard fast as data grows
-  const start = from ? new Date(from) : new Date(new Date().setDate(new Date().getDate() - 14));
-  const end = to ? new Date(to) : new Date();
-  start.setHours(0, 0, 0, 0);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
+  return calendarDateRange(from, to, 14);
 }
 
 function toDateKey(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return toCalendarDate(d);
 }
 
 function planScope(user?: AuthUser): Prisma.ProductionPlanWhereInput {
@@ -38,6 +34,7 @@ type PlanAgg = {
   good: number;
   reject: number;
   downtime: number;
+  plannedLoss: number;
 };
 
 async function loadDashboardCore(user?: AuthUser, from?: string, to?: string, shiftId?: string) {
@@ -64,23 +61,19 @@ async function loadDashboardCore(user?: AuthUser, from?: string, to?: string, sh
   });
 
   const planIds = plans.map((p) => p.id);
-  const emptyAgg = (): PlanAgg => ({ actual: 0, good: 0, reject: 0, downtime: 0 });
+  const emptyAgg = (): PlanAgg => ({ actual: 0, good: 0, reject: 0, downtime: 0, plannedLoss: 0 });
   const byPlan = new Map<string, PlanAgg>();
 
   if (planIds.length > 0) {
-    const [entryAggs, dtAggs, dtByCategory, dtByMachine, changeovers] = await Promise.all([
+    // One downtime groupBy by plan+category covers totals, PPL split, and category chart
+    const [entryAggs, dtByPlanCategory, dtByMachine, changeovers] = await Promise.all([
       prisma.productionEntry.groupBy({
         by: ['planId'],
         where: { deletedAt: null, status: { not: 'REJECTED' }, planId: { in: planIds } },
         _sum: { actualCases: true, goodCases: true, rejectCases: true },
       }),
       prisma.downtimeEntry.groupBy({
-        by: ['planId'],
-        where: { deletedAt: null, planId: { in: planIds } },
-        _sum: { durationMins: true },
-      }),
-      prisma.downtimeEntry.groupBy({
-        by: ['categoryId'],
+        by: ['planId', 'categoryId'],
         where: { deletedAt: null, planId: { in: planIds } },
         _sum: { durationMins: true },
       }),
@@ -104,21 +97,16 @@ async function loadDashboardCore(user?: AuthUser, from?: string, to?: string, sh
       a.reject = Number(row._sum.rejectCases ?? 0);
       byPlan.set(row.planId, a);
     }
-    for (const row of dtAggs) {
-      const a = byPlan.get(row.planId) ?? emptyAgg();
-      a.downtime = Number(row._sum.durationMins ?? 0);
-      byPlan.set(row.planId, a);
-    }
 
-    const categoryIds = dtByCategory.map((r) => r.categoryId);
+    const categoryIds = [...new Set(dtByPlanCategory.map((r) => r.categoryId))];
     const machineIds = dtByMachine.map((r) => r.machineId).filter((id): id is string => !!id);
     const [categories, machines] = await Promise.all([
       categoryIds.length
         ? prisma.downtimeCategory.findMany({
             where: { id: { in: categoryIds } },
-            select: { id: true, name: true },
+            select: { id: true, name: true, code: true },
           })
-        : Promise.resolve([] as Array<{ id: string; name: string }>),
+        : Promise.resolve([] as Array<{ id: string; name: string; code: string }>),
       machineIds.length
         ? prisma.machine.findMany({
             where: { id: { in: machineIds } },
@@ -126,23 +114,33 @@ async function loadDashboardCore(user?: AuthUser, from?: string, to?: string, sh
           })
         : Promise.resolve([] as Array<{ id: string; name: string }>),
     ]);
+    const catMeta = new Map(categories.map((c) => [c.id, c]));
     const catName = new Map(categories.map((c) => [c.id, c.name]));
     const machName = new Map(machines.map((m) => [m.id, m.name]));
 
     const downtimeByCategoryMap = new Map<string, number>();
-    for (const r of dtByCategory) {
-      const raw = catName.get(r.categoryId) || 'Other';
+    for (const row of dtByPlanCategory) {
+      const mins = Number(row._sum.durationMins ?? 0);
+      const a = byPlan.get(row.planId) ?? emptyAgg();
+      a.downtime += mins;
+      const meta = catMeta.get(row.categoryId);
+      if (isPlannedProductionLossCategory(meta?.name, meta?.code)) {
+        a.plannedLoss += mins;
+      }
+      byPlan.set(row.planId, a);
+
+      const raw = catName.get(row.categoryId) || 'Other';
       const name = raw.trim() || 'Other';
       const key = name.toLowerCase();
-      const mins = Math.round(Number(r._sum.durationMins ?? 0));
-      // Merge duplicate category names (e.g. legacy + new codes with same label)
+      const rounded = Math.round(mins);
       const existing = [...downtimeByCategoryMap.entries()].find(([n]) => n.toLowerCase() === key);
       if (existing) {
-        downtimeByCategoryMap.set(existing[0], existing[1] + mins);
+        downtimeByCategoryMap.set(existing[0], existing[1] + rounded);
       } else {
-        downtimeByCategoryMap.set(name, mins);
+        downtimeByCategoryMap.set(name, rounded);
       }
     }
+
     const downtimeByCategory = [...downtimeByCategoryMap.entries()]
       .map(([name, minutes]) => ({ name, minutes }))
       .filter((r) => r.minutes > 0)
@@ -191,7 +189,9 @@ function assembleDashboard(core: Awaited<ReturnType<typeof loadDashboardCore>>) 
   let goodCases = 0;
   let rejectCases = 0;
   let downtime = 0;
+  let plannedLossMins = 0;
   let plannedMins = 0;
+  let scheduledMins = 0;
   let runTimeMins = 0;
   let wAvail = 0;
   let wPerf = 0;
@@ -211,32 +211,37 @@ function assembleDashboard(core: Awaited<ReturnType<typeof loadDashboardCore>>) 
   const rejectDay = new Map<string, { reject: number; good: number }>();
 
   for (const plan of plans) {
-    const agg = byPlan.get(plan.id) ?? { actual: 0, good: 0, reject: 0, downtime: 0 };
+    const agg = byPlan.get(plan.id) ?? { actual: 0, good: 0, reject: 0, downtime: 0, plannedLoss: 0 };
     const a = agg.actual;
     const g = agg.good;
     const r = agg.reject;
     const dt = agg.downtime;
+    const ppl = agg.plannedLoss;
     const totalCount = a || g + r;
     const goodCount = g > 0 ? g : totalCount;
     const dateKey = toDateKey(plan.productionDate);
     const monthKey = dateKey.slice(0, 7);
 
     plannedCases += plan.plannedCases;
-    plannedMins += plan.plannedOperatingMins;
+    scheduledMins += plan.plannedOperatingMins;
     actualCases += a;
     goodCases += g;
     rejectCases += r;
-    downtime += dt;
+    plannedLossMins += ppl;
 
     const metrics = computeOeeMetrics({
       plannedProductionTimeMins: plan.plannedOperatingMins,
       downtimeMins: dt,
+      plannedLossMins: ppl,
       plannedCount: plan.plannedCases,
       totalCount,
       goodCount,
     });
 
-    const weight = Math.max(0, plan.plannedOperatingMins) || 0;
+    plannedMins += metrics.plannedProductionTimeMins;
+    downtime += metrics.downtimeMins;
+
+    const weight = Math.max(0, metrics.plannedProductionTimeMins) || 0;
     if (weight > 0) {
       wAvail += metrics.availability * weight;
       wPerf += metrics.performance * weight;
@@ -319,7 +324,9 @@ function assembleDashboard(core: Awaited<ReturnType<typeof loadDashboardCore>>) 
     performance,
     quality,
     runTimeMins: Number(runTimeMins.toFixed(2)),
-    plannedProductionTimeMins: plannedMins,
+    plannedProductionTimeMins: Number(plannedMins.toFixed(2)),
+    scheduledProductionTimeMins: Number(scheduledMins.toFixed(2)),
+    plannedLossMins: Number(plannedLossMins.toFixed(2)),
     idealCycleTimeMins: weightSum ? Number((idealCycleWeighted / weightSum).toFixed(6)) : 0,
     downtime,
     capacityUtilization: calcCapacityUtilization(actualCases, plannedCases),
@@ -430,13 +437,7 @@ export async function getPlanVsActualDashboard(
   user?: AuthUser,
   filters?: { from?: string; to?: string; brandId?: string; skuId?: string; packVolume?: string },
 ) {
-  const from = filters?.from?.slice(0, 10);
-  const to = filters?.to?.slice(0, 10);
-  const start = from
-    ? new Date(`${from}T00:00:00.000Z`)
-    : new Date(new Date().setDate(new Date().getDate() - 30));
-  const end = to ? new Date(`${to}T23:59:59.999Z`) : new Date();
-  if (!to) end.setHours(23, 59, 59, 999);
+  const { start, end } = calendarDateRange(filters?.from, filters?.to, 30);
 
   let packVolume = filters?.packVolume?.trim() || '';
   if (!packVolume && filters?.skuId) {
@@ -519,7 +520,7 @@ export async function getPlanVsActualDashboard(
     const brandName = plan.product.brand?.name || plan.product.name || 'Unassigned';
     const brandId = plan.product.brandId || null;
     const skuLabel = plan.sku.packVolume || plan.sku.name || plan.sku.code;
-    const dateKey = plan.productionDate.toISOString().slice(0, 10);
+    const dateKey = toCalendarDate(plan.productionDate);
 
     const pKey = `${dateKey}::${plan.productId}`;
     const p = byProduct.get(pKey) ?? {
@@ -645,6 +646,7 @@ export async function exportPlanVsActualExcel(
   const data = await getPlanVsActualDashboard(user, filters);
   const tableRows = data.skuRows?.length ? data.skuRows : data.rows.map((r) => ({ ...r, sku: '—' }));
 
+  const ExcelJS = (await import('exceljs')).default;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Nakshatra Beverages MES';
   const sheet = workbook.addWorksheet('Plan vs Actual');
@@ -1093,7 +1095,7 @@ export async function getManpowerAnalysis(
   const shiftDayMap = new Map<string, ShiftBucket>();
 
   for (const plan of plans) {
-    const dateKey = plan.productionDate.toISOString().slice(0, 10);
+    const dateKey = toCalendarDate(plan.productionDate);
     const shiftName = plan.shift?.name || 'Unassigned';
     const lineName = plan.line?.code || plan.line?.name || 'Unassigned';
     const key = `${dateKey}|${plan.shiftId}|${plan.lineId}`;

@@ -317,62 +317,65 @@ export default function ChangeoverEntriesPage() {
       />
 
       <div className="panel mb-4 p-4">
-        <h3 className="mb-3 font-semibold">{editingId ? 'Edit Changeover' : 'Changeover Entry'}</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Date">
-            <input
-              className="input"
-              type="date"
-              value={form.productionDate || ''}
-              onChange={(e) => setForm({ ...form, productionDate: e.target.value })}
-            />
-          </Field>
-          <Field label="Production Line">
-            <select
-              className="input"
-              value={form.lineId || ''}
-              onChange={(e) => setForm({ ...form, lineId: e.target.value })}
-            >
-              <option value="">Select line...</option>
-              {(lines.data ?? []).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.code || l.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Change Over Type">
-            <select
-              className="input"
-              value={form.changeoverTypeId || ''}
-              onChange={(e) => {
-                const id = e.target.value;
-                const t = (coTypes.data ?? []).find((x) => x.id === id);
-                setForm((prev) => ({
-                  ...prev,
-                  changeoverTypeId: id,
-                  standardMins: id ? String(t?.standardMins ?? '') : '',
-                }));
-              }}
-            >
-              <option value="">Select type...</option>
-              {(coTypes.data ?? []).map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.standardMins} min)
-                </option>
-              ))}
-            </select>
-          </Field>
+        <h3 className="mb-4 font-semibold">{editingId ? 'Edit Changeover' : 'Changeover Entry'}</h3>
 
-          <div className="sm:col-span-2 lg:col-span-3 grid gap-3 sm:grid-cols-2">
+        <div className="co-entry-form flex flex-col gap-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Date" className="mb-0">
+              <input
+                className="input w-full"
+                type="date"
+                value={form.productionDate || ''}
+                onChange={(e) => setForm({ ...form, productionDate: e.target.value })}
+              />
+            </Field>
+            <Field label="Production Line" className="mb-0">
+              <select
+                className="input w-full"
+                value={form.lineId || ''}
+                onChange={(e) => setForm({ ...form, lineId: e.target.value })}
+              >
+                <option value="">Select line...</option>
+                {(lines.data ?? []).map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.code || l.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Change Over Type" className="mb-0">
+              <select
+                className="input w-full"
+                value={form.changeoverTypeId || ''}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const t = (coTypes.data ?? []).find((x) => x.id === id);
+                  setForm((prev) => ({
+                    ...prev,
+                    changeoverTypeId: id,
+                    standardMins: id ? String(t?.standardMins ?? '') : '',
+                  }));
+                }}
+              >
+                <option value="">Select type...</option>
+                {(coTypes.data ?? []).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.standardMins} min)
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border)' }}>
               <div className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
                 From
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="From Product">
+                <Field label="From Product" className="mb-0">
                   <select
-                    className="input"
+                    className="input w-full"
                     value={form.fromProductId || ''}
                     onChange={(e) => setForm({ ...form, fromProductId: e.target.value, fromSkuId: '' })}
                   >
@@ -384,9 +387,9 @@ export default function ChangeoverEntriesPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="From SKU">
+                <Field label="From SKU" className="mb-0">
                   <select
-                    className="input"
+                    className="input w-full"
                     value={form.fromSkuId || ''}
                     onChange={(e) => setForm({ ...form, fromSkuId: e.target.value })}
                   >
@@ -406,9 +409,9 @@ export default function ChangeoverEntriesPage() {
                 To
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="To Product">
+                <Field label="To Product" className="mb-0">
                   <select
-                    className="input"
+                    className="input w-full"
                     value={form.toProductId || ''}
                     onChange={(e) => setForm({ ...form, toProductId: e.target.value, toSkuId: '' })}
                   >
@@ -420,9 +423,9 @@ export default function ChangeoverEntriesPage() {
                     ))}
                   </select>
                 </Field>
-                <Field label="To SKU">
+                <Field label="To SKU" className="mb-0">
                   <select
-                    className="input"
+                    className="input w-full"
                     value={form.toSkuId || ''}
                     onChange={(e) => setForm({ ...form, toSkuId: e.target.value })}
                   >
@@ -438,75 +441,82 @@ export default function ChangeoverEntriesPage() {
             </div>
           </div>
 
-          <Field label="Standard Changeover Time (mins)">
+          <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Standard Changeover Time (mins)" className="mb-0">
+              <input
+                className="input w-full"
+                type="number"
+                min={0}
+                readOnly
+                value={form.standardMins || ''}
+                title="Auto-filled from Change Over Type master"
+                placeholder="Select change over type"
+                style={{ background: 'var(--panel-2)', cursor: 'default' }}
+              />
+              <div className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
+                Auto-filled from Changeover Types master
+                {selectedType ? ` · ${selectedType.name}` : ''}
+              </div>
+            </Field>
+            <Field label="Start Time" className="mb-0">
+              <input
+                className="input w-full"
+                type="time"
+                value={form.startTime || ''}
+                onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+              />
+            </Field>
+            <Field label="End Time" className="mb-0">
+              <input
+                className="input w-full"
+                type="time"
+                value={form.endTime || ''}
+                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Total Changeover Time (mins)" className="mb-0">
+              <input className="input w-full" type="number" value={String(totalMins)} readOnly />
+            </Field>
+            <Field label="Type of Plan" className="mb-0">
+              <select
+                className="input w-full"
+                value={form.kind || 'PLANNED'}
+                onChange={(e) => setForm({ ...form, kind: e.target.value })}
+              >
+                <option value="PLANNED">Planned</option>
+                <option value="UNPLANNED">Unplanned</option>
+              </select>
+            </Field>
+            <Field label="Reason for Changeover" className="mb-0">
+              <select
+                className="input w-full"
+                value={form.reason || ''}
+                onChange={(e) => setForm({ ...form, reason: e.target.value })}
+              >
+                <option value="">Select reason...</option>
+                {REASON_OPTIONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          <Field label="Remarks" className="mb-0">
             <input
-              className="input"
-              type="number"
-              min={0}
-              readOnly
-              value={form.standardMins || ''}
-              title="Auto-filled from Change Over Type master"
-              placeholder="Select change over type"
-              style={{ background: 'var(--panel-2)', cursor: 'default' }}
-            />
-            <div className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
-              Auto-filled from Changeover Types master
-              {selectedType ? ` · ${selectedType.name}` : ''}
-            </div>
-          </Field>
-          <Field label="Start Time">
-            <input
-              className="input"
-              type="time"
-              value={form.startTime || ''}
-              onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-            />
-          </Field>
-          <Field label="End Time">
-            <input
-              className="input"
-              type="time"
-              value={form.endTime || ''}
-              onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-            />
-          </Field>
-          <Field label="Total Changeover Time (mins)">
-            <input className="input" type="number" value={String(totalMins)} readOnly />
-          </Field>
-          <Field label="Type of Plan">
-            <select
-              className="input"
-              value={form.kind || 'PLANNED'}
-              onChange={(e) => setForm({ ...form, kind: e.target.value })}
-            >
-              <option value="PLANNED">Planned</option>
-              <option value="UNPLANNED">Unplanned</option>
-            </select>
-          </Field>
-          <Field label="Reason for Changeover">
-            <select
-              className="input"
-              value={form.reason || ''}
-              onChange={(e) => setForm({ ...form, reason: e.target.value })}
-            >
-              <option value="">Select reason...</option>
-              {REASON_OPTIONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Remarks">
-            <input
-              className="input"
+              className="input w-full"
               value={form.remarks || ''}
               onChange={(e) => setForm({ ...form, remarks: e.target.value })}
               placeholder="Optional remarks"
             />
           </Field>
         </div>
-        <div className="mt-3 flex gap-2">
+
+        <div className="mt-4 flex gap-2">
           <button className="btn btn-primary flex-1" disabled={save.isPending} onClick={() => save.mutate()}>
             {save.isPending ? 'Saving...' : editingId ? 'Update Changeover' : 'Save Changeover'}
           </button>
@@ -523,44 +533,74 @@ export default function ChangeoverEntriesPage() {
         {list.isError ? (
           <p className="text-sm text-red-600">Could not load changeovers. Refresh and try again.</p>
         ) : (
-          <div className="table-wrap">
+          <div className="table-wrap fit-cols">
             <table className="data entry-log">
+              <colgroup>
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '7%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '9%' }} />
+                <col style={{ width: '7%' }} />
+                <col style={{ width: '5%' }} />
+                <col style={{ width: '5%' }} />
+                <col style={{ width: '4%' }} />
+                <col style={{ width: '5%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '5.25rem' }} />
+              </colgroup>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Line</th>
-                  <th>From Product</th>
-                  <th>From SKU</th>
-                  <th>To Product</th>
-                  <th>To SKU</th>
-                  <th>Type</th>
-                  <th>Plan</th>
-                  <th>Start</th>
-                  <th>End</th>
-                  <th>Std</th>
-                  <th>Total</th>
-                  <th>Reason</th>
+                  <th title="Date">Date</th>
+                  <th title="Line">Line</th>
+                  <th title="From Product">From</th>
+                  <th title="From SKU">SKU</th>
+                  <th title="To Product">To</th>
+                  <th title="To SKU">SKU</th>
+                  <th title="Change Over Type">Type</th>
+                  <th title="Type of Plan">Plan</th>
+                  <th title="Start Time">Start</th>
+                  <th title="End Time">End</th>
+                  <th title="Standard mins">Std</th>
+                  <th title="Total mins">Total</th>
+                  <th title="Reason">Reason</th>
                   <th className="col-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {(list.data ?? []).map((c) => (
                   <tr key={c.id} className={editingId === c.id ? 'bg-blue-50/40' : undefined}>
-                    <td>
+                    <td title={String(c.productionDate || '').slice(0, 10)}>
                       <DateWithIcon value={c.productionDate || c.startTime || null} />
                     </td>
-                    <td>{c.line?.code || c.line?.name || '—'}</td>
-                    <td className="wrap">{c.fromProduct?.name || '—'}</td>
-                    <td>{skuLabel(c.fromSku, catalogSkus, c.fromSkuId)}</td>
-                    <td className="wrap">{c.toProduct?.name || '—'}</td>
-                    <td>{skuLabel(c.toSku, catalogSkus, c.toSkuId)}</td>
-                    <td className="wrap">{c.changeoverType?.name || '—'}</td>
+                    <td className="wrap" title={c.line?.code || c.line?.name || ''}>
+                      {c.line?.code || c.line?.name || '—'}
+                    </td>
+                    <td className="wrap" title={c.fromProduct?.name || ''}>
+                      {c.fromProduct?.name || '—'}
+                    </td>
+                    <td className="wrap" title={skuLabel(c.fromSku, catalogSkus, c.fromSkuId)}>
+                      {skuLabel(c.fromSku, catalogSkus, c.fromSkuId)}
+                    </td>
+                    <td className="wrap" title={c.toProduct?.name || ''}>
+                      {c.toProduct?.name || '—'}
+                    </td>
+                    <td className="wrap" title={skuLabel(c.toSku, catalogSkus, c.toSkuId)}>
+                      {skuLabel(c.toSku, catalogSkus, c.toSkuId)}
+                    </td>
+                    <td className="wrap" title={c.changeoverType?.name || ''}>
+                      {c.changeoverType?.name || '—'}
+                    </td>
                     <td>{c.kind === 'UNPLANNED' ? 'Unplanned' : 'Planned'}</td>
-                    <td>{formatTime24(c.startTime)}</td>
-                    <td>{formatTime24(c.endTime)}</td>
-                    <td>{c.standardMins}</td>
-                    <td>{c.actualMins}</td>
-                    <td className="wrap">{c.reason || '—'}</td>
+                    <td className="col-time">{formatTime24(c.startTime)}</td>
+                    <td className="col-time">{formatTime24(c.endTime)}</td>
+                    <td className="tabular-nums">{c.standardMins}</td>
+                    <td className="tabular-nums">{c.actualMins}</td>
+                    <td className="wrap" title={c.reason || ''}>
+                      {c.reason || '—'}
+                    </td>
                     <td className="col-actions">
                       <div className="row-actions">
                         <IconButton title="Edit" primary type="button" onClick={() => startEdit(c)}>

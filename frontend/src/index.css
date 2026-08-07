@@ -18,11 +18,11 @@
   --muted: #6d6b7b;
   --accent: #7367f0;
   --accent-soft: #eeedfd;
-  --accent-2: #28c76f;
-  --info: #00cfe8;
-  --danger: #ea5455;
-  --warning: #ff9f43;
-  --success: #28c76f;
+  --accent-2: #16a34a;
+  --info: #2563eb;
+  --danger: #dc2626;
+  --warning: #f97316;
+  --success: #16a34a;
   --sidebar: #141c26;
   --sidebar-text: #9aa8b8;
   --sidebar-heading: #e6edf5;
@@ -42,23 +42,38 @@
   --chart-5: #00cfe8;
   --table-head: #f3f4f6;
   --table-head-text: #111827;
+  --band-excellent: #16a34a;
+  --band-good: #facc15;
+  --band-average: #f97316;
+  --band-poor: #dc2626;
+  --band-critical: #374151;
+  --pillar-availability: #2563eb;
+  --pillar-performance: #f97316;
+  --pillar-quality: #9333ea;
+  --cat-planned-loss: #9ca3af;
+  --cat-mechanical: #dc2626;
+  --cat-electrical: #f59e0b;
+  --cat-utility: #06b6d4;
+  --cat-material: #92400e;
+  --cat-quality-hold: #9333ea;
+  --cat-manpower: #0d9488;
 }
 
 .dark {
   color-scheme: dark;
-  --bg: #25293c;
-  --panel: #2f3349;
-  --panel-2: #3a3e5b;
-  --border: #44485e;
-  --text: #cfcde4;
-  --muted: #acabc1;
+  --bg: #141c26;
+  --panel: #1c2633;
+  --panel-2: #243041;
+  --border: #2d3a4a;
+  --text: #e6edf5;
+  --muted: #9aa8b8;
   --accent: #7367f0;
   --accent-soft: rgba(115, 103, 240, 0.16);
-  --accent-2: #28c76f;
-  --info: #00cfe8;
-  --danger: #ea5455;
-  --warning: #ff9f43;
-  --success: #28c76f;
+  --accent-2: #16a34a;
+  --info: #2563eb;
+  --danger: #dc2626;
+  --warning: #f97316;
+  --success: #16a34a;
   --sidebar: #121a24;
   --sidebar-text: #9aa8b8;
   --sidebar-heading: #e6edf5;
@@ -67,15 +82,30 @@
   --sidebar-border: #1c2632;
   --sidebar-hover: rgba(140, 160, 180, 0.1);
   --kpi: #7367f0;
-  --shadow: 0 0.25rem 1.125rem rgba(15, 20, 34, 0.35);
-  --shadow-sm: 0 0.125rem 0.5rem rgba(15, 20, 34, 0.28);
+  --shadow: 0 0.25rem 1.125rem rgba(8, 12, 20, 0.45);
+  --shadow-sm: 0 0.125rem 0.5rem rgba(8, 12, 20, 0.35);
   --chart-1: #7367f0;
   --chart-2: #28c76f;
   --chart-3: #ff9f43;
   --chart-4: #ea5455;
   --chart-5: #00cfe8;
-  --table-head: #3a3e5b;
-  --table-head-text: #e8e6f5;
+  --table-head: #243041;
+  --table-head-text: #e6edf5;
+  --band-excellent: #16a34a;
+  --band-good: #facc15;
+  --band-average: #f97316;
+  --band-poor: #dc2626;
+  --band-critical: #9ca3af;
+  --pillar-availability: #3b82f6;
+  --pillar-performance: #fb923c;
+  --pillar-quality: #a855f7;
+  --cat-planned-loss: #9ca3af;
+  --cat-mechanical: #f87171;
+  --cat-electrical: #fbbf24;
+  --cat-utility: #22d3ee;
+  --cat-material: #b45309;
+  --cat-quality-hold: #a855f7;
+  --cat-manpower: #14b8a6;
 }
 
 * {
@@ -86,6 +116,7 @@ html,
 body,
 #root {
   min-height: 100%;
+  background: var(--bg);
 }
 
 body {
@@ -323,6 +354,22 @@ body {
   font-size: 0.7rem;
   padding: 0.22rem 0.55rem 0.22rem 0.45rem;
 }
+
+/* Day-wise OEE — fit all columns in layout, no horizontal scroll */
+table.data.day-wise-oee th {
+  white-space: normal;
+  line-height: 1.25;
+  text-align: center;
+  vertical-align: bottom;
+}
+table.data.day-wise-oee td {
+  text-align: center;
+}
+table.data.day-wise-oee th:nth-child(2),
+table.data.day-wise-oee td:nth-child(2) {
+  text-align: left;
+}
+
 table.data {
   width: 100%;
   border-collapse: collapse;
@@ -477,6 +524,26 @@ table.data tr:hover td.col-actions-start {
 .nav-link.active .nav-icon {
   opacity: 1;
   color: var(--sidebar-active);
+}
+
+/* Sidebar menu scroll — keep profile/logout pinned, nav scrolls */
+.sidebar-nav {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(154, 168, 184, 0.55) transparent;
+}
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(154, 168, 184, 0.45);
+  border-radius: 999px;
+}
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(154, 168, 184, 0.7);
 }
 
 .sidebar-profile:hover {
@@ -671,6 +738,10 @@ table.data tr:hover td.col-actions-start {
   border-color: color-mix(in oklab, var(--accent) 30%, transparent);
 }
 
+table.data tr.row-editing td {
+  background: color-mix(in oklab, var(--accent) 12%, var(--panel));
+}
+
 .kpi-featured {
   background: var(--panel);
   color: var(--text);
@@ -679,50 +750,71 @@ table.data tr:hover td.col-actions-start {
   border: 1px solid var(--border);
 }
 
-/* Login — glassmorphism */
+/* Login — frosted card with high-contrast slate text on water wallpaper */
 .login-glass {
+  --login-ink: #163247;
+  --login-muted: #4a6578;
+  --login-line: rgba(22, 50, 71, 0.28);
   border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(248, 252, 255, 0.82);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
   box-shadow:
-    0 20px 50px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    0 20px 50px rgba(12, 40, 58, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  color: var(--login-ink);
+}
+.login-brand {
+  color: var(--login-ink);
+  letter-spacing: 0.28em;
+}
+.login-logo {
+  filter: drop-shadow(0 6px 16px rgba(22, 50, 71, 0.18));
+}
+.login-label,
+.login-meta {
+  color: var(--login-muted);
+}
+.login-link {
+  color: #2a6f8f;
+}
+.login-link:hover {
+  color: var(--login-ink);
 }
 .login-underline {
   width: 100%;
   background: transparent;
   border: none;
-  border-bottom: 1.5px solid rgba(255, 255, 255, 0.85);
+  border-bottom: 1.5px solid var(--login-line);
   border-radius: 0;
-  color: #fff;
+  color: var(--login-ink);
   font-size: 0.95rem;
   padding: 0.45rem 0.1rem 0.55rem;
   outline: none;
   transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 .login-underline::placeholder {
-  color: rgba(255, 255, 255, 0.45);
+  color: color-mix(in oklab, var(--login-muted) 70%, transparent);
 }
 .login-underline:focus {
-  border-bottom-color: #fff;
-  box-shadow: 0 1px 0 0 #fff;
+  border-bottom-color: #2a6f8f;
+  box-shadow: 0 1px 0 0 #2a6f8f;
 }
 .login-check {
   appearance: none;
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border: 1.5px solid var(--login-line);
   background: transparent;
   display: grid;
   place-items: center;
   cursor: pointer;
 }
 .login-check:checked {
-  background: #7367f0;
-  border-color: #7367f0;
+  background: #2a6f8f;
+  border-color: #2a6f8f;
 }
 .login-check:checked::after {
   content: '';
@@ -732,23 +824,31 @@ table.data tr:hover td.col-actions-start {
   border-bottom: 2px solid #fff;
   transform: rotate(-45deg) translateY(-1px);
 }
+.login-demo {
+  border: 1px solid var(--login-line);
+  background: rgba(22, 50, 71, 0.05);
+  color: var(--login-muted);
+}
+.login-footer {
+  color: var(--login-muted);
+}
 .login-btn {
   width: 100%;
   border: none;
   border-radius: 999px;
-  background: #fff;
-  color: #2f2b3d;
+  background: linear-gradient(180deg, #3d8fb5 0%, #2a6f8f 100%);
+  color: #fff;
   font-weight: 600;
   font-size: 1rem;
   padding: 0.85rem 1.25rem;
   cursor: pointer;
   transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 10px 24px rgba(30, 90, 120, 0.35);
   font-family: "Outfit", var(--font-sans);
 }
 .login-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 14px 28px rgba(30, 90, 120, 0.42);
 }
 .login-btn:disabled {
   opacity: 0.7;
@@ -775,22 +875,22 @@ table.data tr:hover td.col-actions-start {
   --home-deep: #10161f;
   --home-panel: #171f2a;
   --home-line: rgba(132, 148, 168, 0.16);
-  margin: -0.75rem -0.75rem 0;
-  border-radius: var(--radius-lg);
+  margin: 0;
+  min-height: 100%;
+  min-height: 100dvh;
+  min-height: calc(100dvh - 64px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 0;
   overflow: hidden;
   color: var(--home-ink);
   background: var(--home-deep);
   animation: homeFade 560ms ease both;
 }
-@media (min-width: 640px) {
-  .home-page { margin: -1rem -1rem 0; }
-}
-@media (min-width: 768px) {
-  .home-page { margin: -1.25rem -1.25rem 0; }
-}
 
 .home-hero {
   position: relative;
+  flex: 1 1 auto;
   min-height: min(72vh, 620px);
   display: grid;
   place-items: center;
@@ -966,7 +1066,9 @@ table.data tr:hover td.col-actions-start {
 }
 
 .home-links {
+  flex-shrink: 0;
   padding: 0 1rem 1.5rem;
+  margin-top: auto;
   background: linear-gradient(180deg, transparent 0%, #0c1118 30%);
 }
 @media (min-width: 768px) {

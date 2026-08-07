@@ -9,6 +9,7 @@ import * as productionService from '../services/production.service.js';
 import * as dashboardService from '../services/dashboard.service.js';
 import * as reportService from '../services/report.service.js';
 import * as wasteService from '../services/waste.service.js';
+import * as salesService from '../services/sales.service.js';
 import {
   loginSchema,
   changePasswordSchema,
@@ -34,6 +35,7 @@ import {
   manpowerEntrySchema,
   wasteEntrySchema,
   wasteEntryUpdateSchema,
+  salesEntrySchema,
   shiftClosingSchema,
   approvalSchema,
   settingSchema,
@@ -431,6 +433,30 @@ router.get('/waste-entries', authenticate, asyncHandler(async (req, res) => {
   );
 }));
 
+router.get('/waste-entries/export/excel', authenticate, asyncHandler(async (req, res) => {
+  const planId = String(req.query.planId || '');
+  const { buffer, planNumber, date } = await wasteService.exportWasteEntriesExcel(planId);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename=waste-entries-${planNumber || 'wo'}-${date || 'export'}.xlsx`,
+  );
+  res.send(buffer);
+}));
+
+router.get('/waste-entries/work-order-status', authenticate, asyncHandler(async (req, res) => {
+  success(
+    res,
+    await wasteService.listWastageWorkOrderStatus({
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      shiftId: req.query.shiftId as string | undefined,
+      lineId: req.query.lineId as string | undefined,
+      status: req.query.status as 'PENDING' | 'PARTIAL' | 'COMPLETED' | 'ALL' | undefined,
+    }),
+  );
+}));
+
 router.post('/waste-entries', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'), asyncHandler(async (req, res) => {
   success(res, await wasteService.createWasteEntry(wasteEntrySchema.parse(req.body), req), 201);
 }));
@@ -579,6 +605,103 @@ router.get('/dashboard/line-wise', authenticate, asyncHandler(async (req, res) =
       req.user,
     ),
   );
+}));
+
+router.get('/dashboard/day-wise', authenticate, asyncHandler(async (req, res) => {
+  const { getDayWiseOee } = await import('../services/lineOverview.service.js');
+  success(
+    res,
+    await getDayWiseOee(
+      {
+        from: req.query.from as string | undefined,
+        to: req.query.to as string | undefined,
+        plantId: req.query.plantId as string | undefined,
+        lineId: req.query.lineId as string | undefined,
+      },
+      req.user,
+    ),
+  );
+}));
+
+router.get('/dashboard/day-wise/export/excel', authenticate, asyncHandler(async (req, res) => {
+  const { exportDayWiseOeeExcel } = await import('../services/lineOverview.service.js');
+  const buffer = await exportDayWiseOeeExcel(
+    {
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      plantId: req.query.plantId as string | undefined,
+      lineId: req.query.lineId as string | undefined,
+    },
+    req.user,
+  );
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename=day-wise-oee-${(req.query.from as string) || 'from'}-${(req.query.to as string) || 'to'}.xlsx`,
+  );
+  res.send(buffer);
+}));
+
+router.get('/dashboard/week-wise', authenticate, asyncHandler(async (req, res) => {
+  const { getWeekWiseOee } = await import('../services/lineOverview.service.js');
+  success(
+    res,
+    await getWeekWiseOee(
+      {
+        month: req.query.month as string | undefined,
+        plantId: req.query.plantId as string | undefined,
+        lineId: req.query.lineId as string | undefined,
+      },
+      req.user,
+    ),
+  );
+}));
+
+router.get('/dashboard/sales', authenticate, asyncHandler(async (req, res) => {
+  success(
+    res,
+    await salesService.getSalesDashboard(req.user, {
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      plantId: req.query.plantId as string | undefined,
+      channel: req.query.channel as string | undefined,
+    }),
+  );
+}));
+
+router.get('/dashboard/sales/export/excel', authenticate, asyncHandler(async (req, res) => {
+  const buffer = await salesService.exportSalesExcel(req.user, {
+    from: req.query.from as string | undefined,
+    to: req.query.to as string | undefined,
+    plantId: req.query.plantId as string | undefined,
+    channel: req.query.channel as string | undefined,
+  });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename=sales-${(req.query.from as string) || 'from'}-${(req.query.to as string) || 'to'}.xlsx`,
+  );
+  res.send(buffer);
+}));
+
+router.get('/sales-entries', authenticate, asyncHandler(async (req, res) => {
+  success(
+    res,
+    await salesService.listSalesEntries(req.user, {
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      plantId: req.query.plantId as string | undefined,
+    }),
+  );
+}));
+
+router.post('/sales-entries', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  const body = salesEntrySchema.parse(req.body);
+  success(res, await salesService.createSalesEntry(body, req.user), 201);
+}));
+
+router.delete('/sales-entries/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  success(res, await salesService.softDeleteSalesEntry(idParam(req, 'id')));
 }));
 
 /** Reports */

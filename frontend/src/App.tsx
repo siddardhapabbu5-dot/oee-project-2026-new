@@ -32,11 +32,18 @@ import {
   ProfilePage,
 } from './pages/AnalyticsPages';
 import LineWiseOverviewPage from './pages/LineWiseOverviewPage';
+import DayWiseOeePage from './pages/DayWiseOeePage';
+import WeekWiseOeePage from './pages/WeekWiseOeePage';
 import ProductionTargetsPage from './pages/ProductionTargetsPage';
-import OeeGuidancePage from './pages/OeeGuidancePage';
+import OeeGuidanceLayout from './pages/oee-guidance/OeeGuidanceLayout';
+import OeeGuidanceHubPage from './pages/oee-guidance/OeeGuidanceHubPage';
+import OeeRatingScalePage from './pages/oee-guidance/OeeRatingScalePage';
+import OeePillarPage from './pages/oee-guidance/OeePillarPage';
 import HomePage from './pages/HomePage';
 import WasteEntriesPage from './pages/WasteEntriesPage';
+import WastageStatusPage from './pages/WastageStatusPage';
 import WasteReportPage from './pages/WasteReportPage';
+import SalesDashboardPage from './pages/SalesDashboardPage';
 import type { ReactNode } from 'react';
 
 function Protected({ children, path }: { children: ReactNode; path: string }) {
@@ -62,9 +69,23 @@ export default function App() {
         <Route index element={<Navigate to="/home" replace />} />
         <Route path="home" element={<HomePage />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="sales-dashboard" element={<Protected path="/sales-dashboard"><SalesDashboardPage /></Protected>} />
         <Route path="line-wise" element={<Protected path="/line-wise"><LineWiseOverviewPage /></Protected>} />
+        <Route path="day-wise-oee" element={<Protected path="/day-wise-oee"><DayWiseOeePage /></Protected>} />
+        <Route path="week-wise-oee" element={<Protected path="/week-wise-oee"><WeekWiseOeePage /></Protected>} />
         <Route path="oee" element={<Protected path="/oee"><OeePage /></Protected>} />
-        <Route path="oee-guidance" element={<Protected path="/oee-guidance"><OeeGuidancePage /></Protected>} />
+        <Route
+          path="oee-guidance"
+          element={
+            <Protected path="/oee-guidance">
+              <OeeGuidanceLayout />
+            </Protected>
+          }
+        >
+          <Route index element={<OeeGuidanceHubPage />} />
+          <Route path="rating-scale" element={<OeeRatingScalePage />} />
+          <Route path=":pillarId" element={<OeePillarPage />} />
+        </Route>
         <Route path="plan-vs-actual" element={<Protected path="/plan-vs-actual"><PlanVsActualPage /></Protected>} />
         <Route path="users" element={<Protected path="/users"><UsersPage /></Protected>} />
         <Route path="plants" element={<Protected path="/plants"><PlantsPage /></Protected>} />
@@ -78,6 +99,7 @@ export default function App() {
         <Route path="plans" element={<Protected path="/plans"><PlansPage /></Protected>} />
         <Route path="production-entries" element={<Protected path="/production-entries"><ProductionEntriesPage /></Protected>} />
         <Route path="waste-entries" element={<Protected path="/waste-entries"><WasteEntriesPage /></Protected>} />
+        <Route path="wastage-status" element={<Protected path="/wastage-status"><WastageStatusPage /></Protected>} />
         <Route path="changeover-entries" element={<Protected path="/changeover-entries"><ChangeoverEntriesPage /></Protected>} />
         <Route path="shop-floor" element={<Navigate to="/production-entries" replace />} />
         <Route path="approvals" element={<Protected path="/approvals"><ApprovalsPage /></Protected>} />

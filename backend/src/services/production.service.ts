@@ -4,6 +4,7 @@ import { prisma } from '../config/prisma.js';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js';
 import { writeAuditLog } from '../utils/audit.js';
 import { calcLoss, minutesBetween } from '../utils/oee.js';
+import { parseCalendarDate, toCalendarDate } from '../utils/dates.js';
 import type { Request } from 'express';
 import type { AuthUser } from '../middleware/auth.js';
 
@@ -153,7 +154,7 @@ export async function exportPlansExcel(
   for (const p of items) {
     sheet.addRow({
       planNumber: String(p.planNumber || '').replace(/^PP-/i, ''),
-      date: p.productionDate.toISOString().slice(0, 10),
+      date: toCalendarDate(p.productionDate),
       plant: p.plant.name,
       line: p.line.code || p.line.name,
       shift: p.shift.name,
@@ -191,7 +192,7 @@ export async function exportPlanEntriesExcel(planId: string, user?: AuthUser) {
   const skuLabel = plan.sku?.packVolume || plan.sku?.name || plan.sku?.code || '';
   const rows: Array<[string, string | number]> = [
     ['Work Order', plan.planNumber?.replace(/^PP-/i, '') || plan.planNumber],
-    ['Date', plan.productionDate.toISOString().slice(0, 10)],
+    ['Date', toCalendarDate(plan.productionDate)],
     ['Plant', plan.plant?.name || ''],
     ['Line', plan.line?.code || plan.line?.name || ''],
     ['Shift', plan.shift?.name || ''],
@@ -412,7 +413,7 @@ export async function exportProductionEntriesReportExcel(
   for (const plan of plans) {
     const brandName = plan.product?.brand?.name || '';
     const skuLabel = plan.sku?.packVolume || plan.sku?.name || plan.sku?.code || '';
-    const dateStr = plan.productionDate.toISOString().slice(0, 10);
+    const dateStr = toCalendarDate(plan.productionDate);
     const lineLabel = plan.line?.code || plan.line?.name || '';
     const shiftLabel = plan.shift?.name || '';
 
@@ -508,7 +509,7 @@ export async function createPlan(
   const plan = await prisma.productionPlan.create({
     data: {
       planNumber: await nextPlanNumber(),
-      productionDate: new Date(data.productionDate),
+      productionDate: parseCalendarDate(data.productionDate),
       plantId: data.plantId,
       lineId: data.lineId,
       shiftId: data.shiftId,
@@ -537,7 +538,9 @@ export async function updatePlan(id: string, data: Record<string, unknown>, req?
     where: { id },
     data: {
       ...data,
-      productionDate: data.productionDate ? new Date(data.productionDate as string) : undefined,
+      productionDate: data.productionDate
+        ? parseCalendarDate(data.productionDate as string)
+        : undefined,
       plannedStartTime: data.plannedStartTime ? new Date(data.plannedStartTime as string) : undefined,
       plannedEndTime: data.plannedEndTime ? new Date(data.plannedEndTime as string) : undefined,
       updatedById: req?.user?.id,
@@ -1080,7 +1083,7 @@ export async function createChangeover(
 ) {
   let planId = data.planId && String(data.planId).trim() ? String(data.planId).trim() : null;
   let lineId = data.lineId && String(data.lineId).trim() ? String(data.lineId).trim() : null;
-  let productionDate: Date | null = data.productionDate ? new Date(data.productionDate) : null;
+  let productionDate: Date | null = data.productionDate ? parseCalendarDate(data.productionDate) : null;
 
   if (planId) {
     const plan = await getPlan(planId, req?.user);
@@ -1202,7 +1205,7 @@ export async function updateChangeover(
   const productionDate =
     data.productionDate !== undefined
       ? data.productionDate
-        ? new Date(data.productionDate)
+        ? parseCalendarDate(data.productionDate)
         : null
       : before.productionDate;
 

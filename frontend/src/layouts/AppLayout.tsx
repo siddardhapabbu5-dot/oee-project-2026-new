@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, LogOut, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -20,7 +20,11 @@ export default function AppLayout() {
   const { user, clearSession } = useAuthStore();
   const { theme, toggle, setTheme } = useThemeStore();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
+  const location = useLocation();
+  const isHome = location.pathname === '/home' || location.pathname === '/';
+  const [open, setOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true,
+  );
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -31,6 +35,16 @@ export default function AppLayout() {
   useEffect(() => {
     setTheme(theme);
   }, [theme, setTheme]);
+
+  // Keep sidebar open by default on desktop resize; closed on small screens
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    function onChange(e: MediaQueryListEvent) {
+      setOpen(e.matches);
+    }
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedQ(q.trim()), 280);
@@ -166,61 +180,65 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-screen w-full">
+    <div className="flex min-h-screen w-full" style={{ background: 'var(--bg)' }}>
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[260px] shrink-0 flex-col border-r transform transition duration-200 md:static md:translate-x-0 ${
-          open ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-40 flex h-dvh max-h-dvh w-[232px] shrink-0 flex-col border-r transform transition duration-200 ${
+          open ? 'translate-x-0' : '-translate-x-full pointer-events-none'
+        } ${open ? 'md:sticky md:top-0 md:pointer-events-auto md:translate-x-0' : 'md:fixed'}`}
         style={{
           background: 'var(--sidebar)',
           borderColor: 'var(--sidebar-border)',
           color: 'var(--sidebar-text)',
           boxShadow: 'var(--shadow-sm)',
         }}
+        aria-hidden={!open}
       >
-        <div className="flex h-[64px] items-center justify-between gap-3 px-5">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex h-[52px] shrink-0 items-center justify-between gap-2 px-3.5">
+          <div className="flex min-w-0 items-center gap-2.5">
             <div
-              className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg"
+              className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md"
               style={{ background: 'rgba(140, 160, 180, 0.12)' }}
             >
               <img src="/nakshatra-logo.png" alt="Nakshatra Beverages" className="h-full w-full object-contain p-0.5" />
             </div>
             <div className="min-w-0">
-              <div className="truncate text-lg font-semibold leading-tight" style={{ color: 'var(--sidebar-heading)' }}>
+              <div className="truncate text-[0.95rem] font-semibold leading-tight" style={{ color: 'var(--sidebar-heading)' }}>
                 Nakshatra
               </div>
-              <div className="truncate text-xs" style={{ color: 'var(--sidebar-text)' }}>
+              <div className="truncate text-[10px] leading-tight" style={{ color: 'var(--sidebar-text)' }}>
                 Beverages
               </div>
             </div>
           </div>
-          <button className="header-icon-btn md:hidden" onClick={() => setOpen(false)} aria-label="Close menu">
-            <X size={18} />
+          <button
+            type="button"
+            className="header-icon-btn"
+            style={{ width: '1.85rem', height: '1.85rem' }}
+            onClick={() => setOpen(false)}
+            aria-label="Close menu"
+          >
+            <X size={16} />
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 pb-4 pt-1">
+        <nav className="sidebar-nav min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-2 pt-0.5">
           {groups.map(([group, links]) => (
-            <div key={group} className="mb-4">
-              <div
-                className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em]"
-                style={{ color: 'var(--muted)' }}
-              >
-                {group}
-              </div>
-              <div className="space-y-0.5">
+            <div key={group} className="sidebar-nav-group">
+              <div className="sidebar-nav-label">{group}</div>
+              <div className="sidebar-nav-links">
                 {links.map((link) => {
                   const Icon = link.icon;
                   return (
                     <NavLink
                       key={link.path}
                       to={link.path}
-                      onClick={() => setOpen(false)}
+                      onClick={() => {
+                        if (window.matchMedia('(max-width: 767px)').matches) setOpen(false);
+                      }}
                       className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                     >
                       <Icon className="nav-icon" strokeWidth={1.75} />
-                      <span>{link.label}</span>
+                      <span className="truncate">{link.label}</span>
                     </NavLink>
                   );
                 })}
@@ -229,45 +247,57 @@ export default function AppLayout() {
           ))}
         </nav>
 
-        <div className="border-t p-3 space-y-2" style={{ borderColor: 'var(--sidebar-border)' }}>
+        <div className="shrink-0 border-t px-2.5 py-2 space-y-1.5" style={{ borderColor: 'var(--sidebar-border)' }}>
           <button
-            className="sidebar-profile flex w-full items-center gap-3 rounded-[0.625rem] p-2 text-left transition"
+            className="sidebar-profile flex w-full items-center gap-2 rounded-md p-1.5 text-left transition"
             onClick={() => navigate('/profile')}
           >
             <div
-              className="grid h-10 w-10 place-items-center rounded-full text-sm font-semibold"
+              className="grid h-8 w-8 place-items-center rounded-full text-[11px] font-semibold"
               style={{ background: 'rgba(140, 160, 180, 0.22)', color: 'var(--sidebar-heading)' }}
             >
               {initials || 'U'}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold" style={{ color: 'var(--sidebar-heading)' }}>
+              <div className="truncate text-xs font-semibold" style={{ color: 'var(--sidebar-heading)' }}>
                 {user?.firstName} {user?.lastName}
               </div>
-              <div className="truncate text-xs capitalize" style={{ color: 'var(--sidebar-text)' }}>
+              <div className="truncate text-[10px] capitalize" style={{ color: 'var(--sidebar-text)' }}>
                 {user?.role.replaceAll('_', ' ').toLowerCase()}
               </div>
             </div>
           </button>
-          <button type="button" className="btn sidebar-logout flex w-full items-center justify-center gap-2" onClick={logout}>
-            <LogOut size={16} />
+          <button type="button" className="btn sidebar-logout flex w-full items-center justify-center gap-1.5" onClick={logout}>
+            <LogOut size={14} />
             Logout
           </button>
         </div>
       </aside>
 
-      {open ? <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setOpen(false)} /> : null}
+      {open ? (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          onClick={() => setOpen(false)}
+          aria-hidden
+        />
+      ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col" style={{ background: 'var(--bg)' }}>
         <header
-          className="sticky top-0 z-30 flex h-[64px] items-center gap-2 border-b px-4 md:px-5"
+          className="sticky top-0 z-50 flex h-[64px] items-center gap-2 border-b px-4 md:px-5"
           style={{
             borderColor: 'var(--border)',
             background: 'color-mix(in oklab, var(--bg) 92%, transparent)',
             backdropFilter: 'blur(10px)',
           }}
         >
-          <button className="header-icon-btn md:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
+          <button
+            type="button"
+            className="header-icon-btn"
+            onClick={() => setOpen((v) => !v)}
+            aria-label={open ? 'Close menu' : 'Open menu'}
+            aria-expanded={open}
+          >
             <Menu size={18} />
           </button>
           <div className="relative flex-1 max-w-xl" ref={searchWrapRef}>
@@ -465,7 +495,12 @@ export default function AppLayout() {
             </button>
           </div>
         </header>
-        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-5">
+        <main
+          className={`app-main min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto ${
+            isHome ? 'p-0' : 'p-3 sm:p-4 md:p-5'
+          }`}
+          style={{ background: isHome ? 'var(--home-deep, #10161f)' : 'var(--bg)' }}
+        >
           <Outlet />
         </main>
       </div>

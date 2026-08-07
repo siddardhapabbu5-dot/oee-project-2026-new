@@ -80,6 +80,7 @@ model User {
   changeoverEntries  ChangeoverEntry[]
   manpowerEntries    ManpowerEntry[]
   wasteEntries       WasteEntry[]
+  salesEntries       SalesEntry[]
   shiftClosings      ShiftClosing[]
   notifications      Notification[]
   auditLogs          AuditLog[]          @relation("AuditActor")
@@ -107,6 +108,7 @@ model Plant {
   users           User[]
   lines           ProductionLine[]
   productionPlans ProductionPlan[]
+  salesEntries    SalesEntry[]
 
   @@index([deletedAt])
   @@map("plants")
@@ -152,6 +154,7 @@ model Brand {
   updatedById String?
 
   products Product[]
+  salesEntries SalesEntry[]
 
   @@index([deletedAt])
   @@map("brands")
@@ -176,6 +179,7 @@ model Product {
   productionPlans    ProductionPlan[]
   changeoversFrom    ChangeoverEntry[] @relation("ChangeoverFrom")
   changeoversTo      ChangeoverEntry[] @relation("ChangeoverTo")
+  salesEntries       SalesEntry[]
 
   @@index([brandId])
   @@index([deletedAt])
@@ -203,6 +207,7 @@ model Sku {
   productionPlans ProductionPlan[]
   changeoversFrom ChangeoverEntry[] @relation("ChangeoverFromSku")
   changeoversTo   ChangeoverEntry[] @relation("ChangeoverToSku")
+  salesEntries    SalesEntry[]
 
   @@index([productId])
   @@index([deletedAt])
@@ -490,20 +495,21 @@ model WasteMaterial {
 }
 
 model WasteEntry {
-  id           String   @id @default(cuid())
-  wasteDate    DateTime @db.Date
-  materialId   String
-  quantity     Float
-  unit         String
-  reason       String
-  remarks      String?
-  shiftId      String?
-  lineId       String?
-  planId       String?
-  createdById  String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime?
+  id              String   @id @default(cuid())
+  wasteDate       DateTime @db.Date
+  materialId      String
+  quantity        Float // wastage qty
+  actualQtyIssued Float? // quantity issued to line
+  unit            String
+  reason          String
+  remarks         String?
+  shiftId         String?
+  lineId          String?
+  planId          String?
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
 
   material  WasteMaterial  @relation(fields: [materialId], references: [id])
   shift     Shift?         @relation(fields: [shiftId], references: [id])
@@ -595,4 +601,49 @@ model AppSetting {
   updatedBy User? @relation(fields: [updatedById], references: [id])
 
   @@map("app_settings")
+}
+
+enum SalesChannel {
+  DISTRIBUTOR
+  RETAIL
+  MODERN_TRADE
+  EXPORT
+  OTHER
+}
+
+/** Daily / invoice-level sales for Sales Dashboard */
+model SalesEntry {
+  id           String       @id @default(cuid())
+  saleDate     DateTime
+  plantId      String?
+  brandId      String?
+  productId    String
+  skuId        String
+  channel      SalesChannel @default(DISTRIBUTOR)
+  customerName String?
+  invoiceNo    String?
+  casesSold    Float
+  unitPrice    Float        @default(0)
+  amount       Float        @default(0)
+  remarks      String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  deletedAt    DateTime?
+  createdById  String?
+  updatedById  String?
+
+  plant     Plant?   @relation(fields: [plantId], references: [id])
+  brand     Brand?   @relation(fields: [brandId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  sku       Sku      @relation(fields: [skuId], references: [id])
+  createdBy User?    @relation(fields: [createdById], references: [id])
+
+  @@index([saleDate])
+  @@index([plantId])
+  @@index([brandId])
+  @@index([productId])
+  @@index([skuId])
+  @@index([channel])
+  @@index([deletedAt])
+  @@map("sales_entries")
 }
