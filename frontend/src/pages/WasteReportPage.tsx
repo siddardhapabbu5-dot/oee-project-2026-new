@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { PackageX, Plus, Recycle, TriangleAlert } from 'lucide-react';
 import api, { type ApiResponse } from '../lib/api';
+import { ChartValueLabels } from '../components/chartLabels';
 import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 import { formatWorkOrder } from '../lib/workOrder';
 
@@ -174,23 +175,27 @@ export default function WasteReportPage() {
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <ChartCard title="Wastage by Material">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={report.data.byMaterial}>
+            <BarChart data={report.data.byMaterial} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip />
-              <Bar dataKey="quantity" name="Quantity" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="quantity" name="Quantity" fill="var(--chart-3)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Wastage by Reason">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={report.data.byReason}>
+            <BarChart data={report.data.byReason} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="reason" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={60} />
-              <YAxis tick={{ fontSize: 11 }} />
+              <XAxis dataKey="reason" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={60} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip />
-              <Bar dataKey="quantity" name="Quantity" fill="var(--chart-4)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="quantity" name="Quantity" fill="var(--chart-4)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -199,24 +204,28 @@ export default function WasteReportPage() {
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <ChartCard title="Daily Wastage Trend">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={daily}>
+            <LineChart data={daily} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
+              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="quantity" name="Wastage qty" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="quantity" name="Wastage qty" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }}>
+                <ChartValueLabels />
+              </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Wastage by Shift">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={report.data.byShift}>
+            <BarChart data={report.data.byShift} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="shift" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
+              <XAxis dataKey="shift" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip />
-              <Bar dataKey="quantity" name="Quantity" fill="var(--chart-5)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="quantity" name="Quantity" fill="var(--chart-5)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

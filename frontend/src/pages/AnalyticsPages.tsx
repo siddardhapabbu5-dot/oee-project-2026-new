@@ -17,6 +17,7 @@ import {
   YAxis,
 } from 'recharts';
 import api, { type ApiResponse } from '../lib/api';
+import { ChartValueLabels } from '../components/chartLabels';
 import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader, Badge } from '../components/ui';
 import { StatusBadge } from '../components/CrudPage';
 import { useMemo, useState } from 'react';
@@ -338,26 +339,34 @@ export function OeePage() {
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="OEE Components Trend">
           <ResponsiveContainer>
-            <LineChart data={c.oeeTrend}>
+            <LineChart data={c.oeeTrend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip labelFormatter={(v) => fmtAxisDate(String(v))} />
               <Legend />
-              <Line type="monotone" dataKey="oee" name="OEE" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="availability" name="Availability" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="performance" name="Performance" stroke="var(--chart-3)" strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="quality" name="Quality" stroke="var(--chart-5)" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="oee" name="OEE" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }}>
+                <ChartValueLabels suffix="%" />
+              </Line>
+              <Line type="monotone" dataKey="availability" name="Availability" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }}>
+                <ChartValueLabels suffix="%" />
+              </Line>
+              <Line type="monotone" dataKey="performance" name="Performance" stroke="var(--chart-3)" strokeWidth={2} dot={{ r: 3 }}>
+                <ChartValueLabels suffix="%" />
+              </Line>
+              <Line type="monotone" dataKey="quality" name="Quality" stroke="var(--chart-5)" strokeWidth={2} dot={{ r: 3 }}>
+                <ChartValueLabels suffix="%" />
+              </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Downtime by Machine" bodyClassName="h-72">
           <ResponsiveContainer>
-            <BarChart data={c.downtimeByMachine} margin={{ bottom: 36, left: 4 }}>
+            <BarChart data={c.downtimeByMachine} margin={{ top: 18, right: 8, left: 4, bottom: 36 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 10 }}
+                tick={{ fontSize: 10, fill: '#64748b' }}
                 interval={0}
                 angle={-18}
                 textAnchor="end"
@@ -366,20 +375,22 @@ export function OeePage() {
               <YAxis
                 domain={[0, dtScale.max]}
                 ticks={dtScale.ticks}
-                tick={{ fontSize: 11 }}
+                tick={{ fontSize: 11, fill: '#64748b' }}
                 label={{ value: 'Minutes', angle: -90, position: 'insideLeft', style: { fill: 'var(--muted)', fontSize: 11 } }}
               />
               <Tooltip formatter={(v) => [`${Math.round(Number(v))} min`, 'Downtime']} />
-              <Bar dataKey="minutes" name="Minutes" fill="var(--chart-4)" radius={4} />
+              <Bar dataKey="minutes" name="Minutes" fill="var(--chart-4)" radius={4}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Capacity Utilisation" className="xl:col-span-2">
           <ResponsiveContainer>
-            <LineChart data={c.capacityUtilization}>
+            <LineChart data={c.capacityUtilization} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip
                 labelFormatter={(v) => fmtAxisDate(String(v))}
                 formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Utilisation']}
@@ -392,7 +403,9 @@ export function OeePage() {
                 strokeWidth={2}
                 dot={{ r: 3 }}
                 activeDot={{ r: 5 }}
-              />
+              >
+                <ChartValueLabels suffix="%" />
+              </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -636,14 +649,18 @@ export function PlanVsActualPage() {
       <div className="mb-4">
         <ChartCard title="Plan vs Actual — Clustered Column (Product-wise)">
           <ResponsiveContainer>
-            <BarChart data={d.chart} margin={{ top: 8, right: 8, left: 0, bottom: 48 }}>
+            <BarChart data={d.chart} margin={{ top: 18, right: 8, left: 0, bottom: 48 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="product" tick={{ fontSize: 11 }} interval={0} angle={-25} textAnchor="end" height={70} />
-              <YAxis />
+              <XAxis dataKey="product" tick={{ fontSize: 11, fill: '#64748b' }} interval={0} angle={-25} textAnchor="end" height={70} />
+              <YAxis tick={{ fill: '#64748b' }} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="planned" name="Planned Cases" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="actual" name="Actual Cases" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="planned" name="Planned Cases" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
+              <Bar dataKey="actual" name="Actual Cases" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -849,15 +866,19 @@ export function DowntimeAnalysisPage() {
           <div className="grid gap-4 xl:grid-cols-2">
             <ChartCard title="Downtime Trend">
               <ResponsiveContainer>
-                <LineChart data={d.trend}>
+                <LineChart data={d.trend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
                   <Legend />
-                  <Line yAxisId="left" type="monotone" dataKey="minutes" name="Minutes" stroke="var(--chart-4)" strokeWidth={2} />
-                  <Line yAxisId="right" type="monotone" dataKey="count" name="Events" stroke="var(--chart-1)" strokeWidth={2} />
+                  <Line yAxisId="left" type="monotone" dataKey="minutes" name="Minutes" stroke="var(--chart-4)" strokeWidth={2}>
+                    <ChartValueLabels />
+                  </Line>
+                  <Line yAxisId="right" type="monotone" dataKey="count" name="Events" stroke="var(--chart-1)" strokeWidth={2}>
+                    <ChartValueLabels />
+                  </Line>
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -927,38 +948,46 @@ export function DowntimeAnalysisPage() {
 
             <ChartCard title="By Machine">
               <ResponsiveContainer>
-                <BarChart data={d.byMachine}>
+                <BarChart data={d.byMachine} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
-                  <Bar dataKey="minutes" name="Minutes" fill="var(--chart-4)" radius={4} />
+                  <Bar dataKey="minutes" name="Minutes" fill="var(--chart-4)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
             <ChartCard title="By Line">
               <ResponsiveContainer>
-                <BarChart data={d.byLine}>
+                <BarChart data={d.byLine} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="minutes" name="Minutes" fill="var(--chart-3)" radius={4} />
-                  <Bar dataKey="count" name="Events" fill="var(--chart-1)" radius={4} />
+                  <Bar dataKey="minutes" name="Minutes" fill="var(--chart-3)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
+                  <Bar dataKey="count" name="Events" fill="var(--chart-1)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
             <ChartCard title="Top Reasons" className="xl:col-span-2">
               <ResponsiveContainer>
-                <BarChart data={d.byReason} layout="vertical" margin={{ left: 24 }}>
+                <BarChart data={d.byReason} layout="vertical" margin={{ top: 18, right: 28, left: 24, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
-                  <Bar dataKey="minutes" name="Minutes" fill="var(--chart-5)" radius={4} />
+                  <Bar dataKey="minutes" name="Minutes" fill="var(--chart-5)" radius={4}>
+                    <ChartValueLabels position="right" />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -1139,43 +1168,57 @@ export function ChangeoverAnalysisPage() {
           <div className="grid gap-4 xl:grid-cols-2">
             <ChartCard title="Changeover Trend">
               <ResponsiveContainer>
-                <LineChart data={d.trend}>
+                <LineChart data={d.trend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
                   <Legend />
-                  <Line yAxisId="left" type="monotone" dataKey="actualMins" name="Actual Mins" stroke="var(--chart-3)" strokeWidth={2} />
-                  <Line yAxisId="left" type="monotone" dataKey="standardMins" name="Standard Mins" stroke="var(--chart-1)" strokeWidth={2} />
-                  <Line yAxisId="right" type="monotone" dataKey="count" name="Count" stroke="var(--chart-2)" strokeWidth={2} />
+                  <Line yAxisId="left" type="monotone" dataKey="actualMins" name="Actual Mins" stroke="var(--chart-3)" strokeWidth={2}>
+                    <ChartValueLabels />
+                  </Line>
+                  <Line yAxisId="left" type="monotone" dataKey="standardMins" name="Standard Mins" stroke="var(--chart-1)" strokeWidth={2}>
+                    <ChartValueLabels />
+                  </Line>
+                  <Line yAxisId="right" type="monotone" dataKey="count" name="Count" stroke="var(--chart-2)" strokeWidth={2}>
+                    <ChartValueLabels />
+                  </Line>
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
 
             <ChartCard title="By Changeover Type">
               <ResponsiveContainer>
-                <BarChart data={d.byType}>
+                <BarChart data={d.byType} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="actualMins" name="Actual" fill="var(--chart-3)" radius={4} />
-                  <Bar dataKey="standardMins" name="Standard" fill="var(--chart-1)" radius={4} />
+                  <Bar dataKey="actualMins" name="Actual" fill="var(--chart-3)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
+                  <Bar dataKey="standardMins" name="Standard" fill="var(--chart-1)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
             <ChartCard title="By Line">
               <ResponsiveContainer>
-                <BarChart data={d.byLine}>
+                <BarChart data={d.byLine} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
-                  <Bar dataKey="actualMins" name="Actual Mins" fill="var(--chart-5)" radius={4} />
-                  <Bar dataKey="count" name="Count" fill="var(--chart-2)" radius={4} />
+                  <Bar dataKey="actualMins" name="Actual Mins" fill="var(--chart-5)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
+                  <Bar dataKey="count" name="Count" fill="var(--chart-2)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -1523,47 +1566,57 @@ export function ManpowerAnalysisPage() {
           <div className="grid gap-4 xl:grid-cols-2">
             <ChartCard title="Cases / Operator Trend">
               <ResponsiveContainer>
-                <LineChart data={d.trend}>
+                <LineChart data={d.trend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip labelFormatter={(v) => fmtAxisDate(String(v))} />
-                  <Line type="monotone" dataKey="casesPerOperator" name="Cases/Op" stroke="var(--chart-1)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="casesPerOperator" name="Cases/Op" stroke="var(--chart-1)" strokeWidth={2}>
+                    <ChartValueLabels />
+                  </Line>
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
             <ChartCard title="Labour Productivity">
               <ResponsiveContainer>
-                <LineChart data={d.trend}>
+                <LineChart data={d.trend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip labelFormatter={(v) => fmtAxisDate(String(v))} />
-                  <Line type="monotone" dataKey="labourProductivity" name="Cases/hr" stroke="var(--chart-3)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="labourProductivity" name="Cases/hr" stroke="var(--chart-3)" strokeWidth={2}>
+                    <ChartValueLabels />
+                  </Line>
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
             <ChartCard title="Availability by Shift">
               <ResponsiveContainer>
-                <BarChart data={d.byShift}>
+                <BarChart data={d.byShift} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
-                  <Bar dataKey="manpowerAvailability" name="Availability %" fill="var(--chart-2)" radius={4} />
+                  <Bar dataKey="manpowerAvailability" name="Availability %" fill="var(--chart-2)" radius={4}>
+                    <ChartValueLabels suffix="%" />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
             <ChartCard title="Idle Labour & Overtime">
               <ResponsiveContainer>
-                <LineChart data={d.trend}>
+                <LineChart data={d.trend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip labelFormatter={(v) => fmtAxisDate(String(v))} />
                   <Legend />
-                  <Line type="monotone" dataKey="idleLabourHours" name="Idle Hours" stroke="var(--chart-4)" strokeWidth={2} />
-                  <Line type="monotone" dataKey="overtimeHours" name="OT Hours" stroke="var(--chart-5)" strokeWidth={2} />
+                  <Line type="monotone" dataKey="idleLabourHours" name="Idle Hours" stroke="var(--chart-4)" strokeWidth={2}>
+                    <ChartValueLabels />
+                  </Line>
+                  <Line type="monotone" dataKey="overtimeHours" name="OT Hours" stroke="var(--chart-5)" strokeWidth={2}>
+                    <ChartValueLabels />
+                  </Line>
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>

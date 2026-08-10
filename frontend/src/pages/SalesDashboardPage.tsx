@@ -27,6 +27,7 @@ import {
   YAxis,
 } from 'recharts';
 import api, { type ApiResponse } from '../lib/api';
+import { ChartValueLabels } from '../components/chartLabels';
 import { ChartCard, Field, IconButton, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 import { useAuthStore } from '../store';
 
@@ -266,13 +267,15 @@ export default function SalesDashboardPage() {
     return (
       <div>
         <PageHeader title="Sales Dashboard" subtitle="Cases, revenue, brand & channel performance" />
-        <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-          <Field label="From Date">
-            <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </Field>
-          <Field label="To Date">
-            <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </Field>
+        <div className="panel mb-4 p-4">
+          <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-[1fr_1fr_auto]">
+            <Field label="From Date" className="mb-0">
+              <input className="input box-border h-10" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </Field>
+            <Field label="To Date" className="mb-0">
+              <input className="input box-border h-10" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </Field>
+          </div>
         </div>
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
           From date must be on or before To date.
@@ -322,53 +325,59 @@ export default function SalesDashboardPage() {
         }
       />
 
-      <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-        <Field label="From Date">
-          <input
-            className="input"
-            type="date"
-            value={from}
-            max={today()}
-            onChange={(e) => {
-              const v = e.target.value;
-              setFrom(v);
-              if (to && v > to) setTo(v);
-            }}
-          />
-        </Field>
-        <Field label="To Date">
-          <input
-            className="input"
-            type="date"
-            value={to}
-            max={today()}
-            onChange={(e) => {
-              const v = e.target.value;
-              setTo(v);
-              if (from && v < from) setFrom(v);
-            }}
-          />
-        </Field>
-        <Field label="Channel">
-          <select className="input min-w-[10rem]" value={channel} onChange={(e) => setChannel(e.target.value)}>
-            {CHANNELS.map((ch) => (
-              <option key={ch.value || 'all'} value={ch.value}>
-                {ch.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label={'\u00a0'}>
-          <button
-            className="btn btn-secondary inline-flex items-center gap-2"
-            type="button"
-            onClick={clearFilters}
-            title="Reset to month start → today"
-          >
-            <FilterX size={16} strokeWidth={1.75} />
-            Clear
-          </button>
-        </Field>
+      <div className="panel mb-4 p-4">
+        <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+          <Field label="From Date" className="mb-0">
+            <input
+              className="input box-border h-10"
+              type="date"
+              value={from}
+              max={today()}
+              onChange={(e) => {
+                const v = e.target.value;
+                setFrom(v);
+                if (to && v > to) setTo(v);
+              }}
+            />
+          </Field>
+          <Field label="To Date" className="mb-0">
+            <input
+              className="input box-border h-10"
+              type="date"
+              value={to}
+              max={today()}
+              onChange={(e) => {
+                const v = e.target.value;
+                setTo(v);
+                if (from && v < from) setFrom(v);
+              }}
+            />
+          </Field>
+          <Field label="Channel" className="mb-0">
+            <select
+              className="input box-border h-10 min-w-[10rem]"
+              value={channel}
+              onChange={(e) => setChannel(e.target.value)}
+            >
+              {CHANNELS.map((ch) => (
+                <option key={ch.value || 'all'} value={ch.value}>
+                  {ch.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Clear" className="mb-0 w-10">
+            <button
+              type="button"
+              className="input box-border inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center px-0"
+              onClick={clearFilters}
+              title="Reset to month start → today"
+              aria-label="Clear filters"
+            >
+              <FilterX size={18} strokeWidth={1.75} />
+            </button>
+          </Field>
+        </div>
       </div>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
@@ -395,28 +404,32 @@ export default function SalesDashboardPage() {
       <div className="mb-4 grid gap-4 xl:grid-cols-2">
         <ChartCard title="Daily Sales Trend (Cases)">
           <ResponsiveContainer>
-            <LineChart data={c.dailyTrend}>
+            <LineChart data={c.dailyTrend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tickFormatter={fmtAxisDate} tick={{ fontSize: 11 }} />
-              <YAxis />
+              <XAxis dataKey="date" tickFormatter={fmtAxisDate} tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fill: '#64748b' }} />
               <Tooltip labelFormatter={(v) => fmtAxisDate(String(v))} />
               <Legend />
-              <Line type="monotone" dataKey="cases" name="Cases" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="cases" name="Cases" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }}>
+                <ChartValueLabels />
+              </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Daily Revenue Trend (₹)">
           <ResponsiveContainer>
-            <LineChart data={c.dailyTrend}>
+            <LineChart data={c.dailyTrend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tickFormatter={fmtAxisDate} tick={{ fontSize: 11 }} />
-              <YAxis />
+              <XAxis dataKey="date" tickFormatter={fmtAxisDate} tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fill: '#64748b' }} />
               <Tooltip
                 labelFormatter={(v) => fmtAxisDate(String(v))}
                 formatter={(v) => [`₹${fmtMoney(Number(v))}`, 'Revenue']}
               />
               <Legend />
-              <Line type="monotone" dataKey="amount" name="Revenue" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="amount" name="Revenue" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }}>
+                <ChartValueLabels />
+              </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -425,23 +438,27 @@ export default function SalesDashboardPage() {
       <div className="mb-4 grid gap-4 xl:grid-cols-3">
         <ChartCard title="Brand-wise Revenue">
           <ResponsiveContainer>
-            <BarChart data={c.byBrand}>
+            <BarChart data={c.byBrand} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fill: '#64748b' }} />
               <Tooltip formatter={(v) => [`₹${fmtMoney(Number(v))}`, 'Revenue']} />
-              <Bar dataKey="amount" name="Revenue" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="amount" name="Revenue" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="SKU-wise Cases">
           <ResponsiveContainer>
-            <BarChart data={c.bySku}>
+            <BarChart data={c.bySku} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fill: '#64748b' }} />
               <Tooltip />
-              <Bar dataKey="cases" name="Cases" fill="var(--chart-5)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="cases" name="Cases" fill="var(--chart-5)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

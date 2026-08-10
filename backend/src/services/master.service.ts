@@ -26,6 +26,80 @@ async function softDelete(model: SoftModel, id: string, req?: Request, entity?: 
   return { message: 'Deleted' };
 }
 
+function slugCode(s: string, max = 40) {
+  return (
+    s
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, max) || `X-${Date.now()}`
+  );
+}
+
+/** Keep Product master in sync with Brand so Brands appear as Product Name on Products & SKUs. */
+async function ensureProductForBrand(brand: { id: string; code: string; name: string; description?: string | null }) {
+  const productCode = `PRD-${slugCode(brand.name)}`;
+
+  const linked = await prisma.product.findFirst({
+    where: { brandId: brand.id },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (linked) {
+    return prisma.product.update({
+      where: { id: linked.id },
+      data: {
+        name: brand.name,
+        description: brand.description ?? linked.description,
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+  }
+
+  const byName = await prisma.product.findFirst({
+    where: { name: { equals: brand.name, mode: 'insensitive' } },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (byName) {
+    return prisma.product.update({
+      where: { id: byName.id },
+      data: {
+        name: brand.name,
+        brandId: brand.id,
+        description: brand.description ?? byName.description,
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+  }
+
+  const byCode = await prisma.product.findUnique({ where: { code: productCode } });
+  if (byCode) {
+    return prisma.product.update({
+      where: { id: byCode.id },
+      data: {
+        name: brand.name,
+        brandId: brand.id,
+        description: brand.description ?? byCode.description,
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+  }
+
+  return prisma.product.create({
+    data: {
+      code: productCode,
+      name: brand.name,
+      brandId: brand.id,
+      description: brand.description ?? `${brand.name} product family`,
+      uom: 'CASE',
+      isActive: true,
+    },
+  });
+}
+
 export const masterService = {
   // Plants
   async listPlants(q: { skip: number; take: number; search?: string }) {
@@ -139,25 +213,46 @@ export const masterService = {
         orderBy: { name: 'asc' },
         include: {
           products: {
-            where: { deletedAt: null },
+            where: { deletedAt: null, isActive: true },
+            orderBy: { createdAt: 'asc' },
             include: { skus: { where: { deletedAt: null } } },
           },
         },
       }),
     ]);
+
+    // Auto-heal: every brand must have a Product so it appears in Products & SKUs → Product Name
+    for (const brand of items) {
+      if (brand.products.length === 0) {
+        const product = await ensureProductForBrand(brand);
+        brand.products = [{ ...product, skus: [] }];
+      }
+    }
+
     return { total, items };
   },
   async createBrand(data: Prisma.BrandCreateInput, req?: Request) {
     const item = await prisma.brand.create({ data });
+    const product = await ensureProductForBrand(item);
     await writeAuditLog({ req, action: 'CREATE', entity: 'Brand', entityId: item.id, after: item });
-    return item;
+    return { ...item, products: [product] };
   },
   async updateBrand(id: string, data: Prisma.BrandUpdateInput, req?: Request) {
     const before = await prisma.brand.findFirst({ where: { id, deletedAt: null } });
     if (!before) throw new NotFoundError('Brand not found');
     const item = await prisma.brand.update({ where: { id }, data });
+    const product = await ensureProductForBrand(item);
     await writeAuditLog({ req, action: 'UPDATE', entity: 'Brand', entityId: id, before, after: item });
-    return item;
+    return { ...item, products: [product] };
+  },
+  /** Ensure every active brand has a linked product (for Product Name dropdown). */
+  async syncBrandProducts() {
+    const brands = await prisma.brand.findMany({ where: { deletedAt: null }, orderBy: { name: 'asc' } });
+    const results = [];
+    for (const brand of brands) {
+      results.push(await ensureProductForBrand(brand));
+    }
+    return { brands: brands.length, products: results.length };
   },
   deleteBrand: (id: string, req?: Request) => softDelete('brand', id, req, 'Brand'),
 
@@ -181,7 +276,7 @@ export const masterService = {
         where,
         skip: q.skip,
         take: q.take,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { name: 'asc' },
         include: {
           brand: true,
           skus: { where: { deletedAt: null }, orderBy: { name: 'asc' } },
@@ -367,7 +462,18 @@ export const masterService = {
 
   // Changeover types
   async listChangeoverTypes() {
-    return prisma.changeoverType.findMany({ where: { deletedAt: null }, orderBy: { name: 'asc' } });
+    const rows = await prisma.changeoverType.findMany({
+      where: { deletedAt: null, isActive: true },
+      orderBy: { name: 'asc' },
+    });
+    // Guard against legacy duplicate names (different codes)
+    const seen = new Set<string>();
+    return rows.filter((r) => {
+      const key = r.name.trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   },
   async createChangeoverType(data: Prisma.ChangeoverTypeCreateInput, req?: Request) {
     const item = await prisma.changeoverType.create({ data });

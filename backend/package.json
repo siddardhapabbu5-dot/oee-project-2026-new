@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "free-port": "tsx scripts/free-port.ts",
+    "dev": "tsx scripts/free-port.ts && tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "db:wait": "tsx scripts/wait-for-db.ts",

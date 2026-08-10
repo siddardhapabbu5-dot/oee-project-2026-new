@@ -50,6 +50,8 @@ export default function HomePage() {
           <div className="home-hero__ring" />
         </div>
 
+        <p className="home-greet">Welcome {name}</p>
+
         <div className="home-hero__content">
           <img
             src="/nakshatra-logo.png"
@@ -80,7 +82,6 @@ export default function HomePage() {
               Plant Dashboard
             </Link>
           </div>
-          <p className="home-greet">Welcome back, {name}</p>
         </div>
       </section>
 

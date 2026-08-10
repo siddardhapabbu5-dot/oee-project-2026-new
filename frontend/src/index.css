@@ -1060,9 +1060,24 @@ table.data tr.row-editing td {
   background: rgba(255, 255, 255, 0.03);
 }
 .home-greet {
-  margin: 1.25rem 0 0;
-  font-size: 0.8rem;
-  color: color-mix(in oklab, var(--home-muted) 80%, transparent);
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 2;
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: color-mix(in oklab, var(--home-ink) 88%, transparent);
+  text-align: right;
+  pointer-events: none;
+}
+@media (min-width: 768px) {
+  .home-greet {
+    top: 1.25rem;
+    right: 1.75rem;
+    font-size: 0.9rem;
+  }
 }
 
 .home-links {

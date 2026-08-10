@@ -186,6 +186,7 @@ async function main() {
     prisma.changeoverType.create({ data: { code: 'CO-SKU', name: 'SKU Change', standardMins: 25 } }),
     prisma.changeoverType.create({ data: { code: 'CO-FLAVOR', name: 'Flavor Change', standardMins: 45 } }),
     prisma.changeoverType.create({ data: { code: 'CO-SIZE', name: 'Size Change', standardMins: 60 } }),
+    prisma.changeoverType.create({ data: { code: 'CO-LABEL', name: 'Label change', standardMins: 5 } }),
   ]);
 
   await prisma.appSetting.createMany({

@@ -112,8 +112,9 @@ export function BrandsPage() {
   return (
     <CrudPage<Row>
       title="Brands"
-      subtitle="Brand master"
+      subtitle="Brand master — new brands appear under Products & SKUs → Product Name"
       endpoint="/brands"
+      invalidateKeys={['brands-product-options', 'products-options', '/products', '/skus', '/brands']}
       columns={[
         { key: 'name', label: 'Brand' },
         { key: 'description', label: 'Description' },
@@ -139,11 +140,21 @@ export function BrandsPage() {
 }
 
 export function ProductsPage() {
-  const products = useQuery({
-    queryKey: ['products-options'],
+  // Product Name = Brands master (each brand is linked to a Product row for SKUs)
+  const brands = useQuery({
+    queryKey: ['brands-product-options'],
     queryFn: async () =>
-      (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/products', { params: { limit: 100 } })).data
-        .data,
+      (
+        await api.get<
+          ApiResponse<
+            Array<{
+              id: string;
+              name: string;
+              products?: Array<{ id: string; name: string }>;
+            }>
+          >
+        >('/brands', { params: { limit: 500 } })
+      ).data.data,
   });
 
   /** Pack size (units/case) from pack volume */
@@ -162,6 +173,15 @@ export function ProductsPage() {
 
   const PACK_VOLUMES = ['200 ML', '250 ML', '300 ML', '500 ML', '750 ML', '1000 ML', '2000 ML', 'Jar-20L'];
 
+  const productOptions = [...(brands.data ?? [])]
+    .map((b) => {
+      const productId = b.products?.[0]?.id;
+      if (!productId) return null;
+      return { value: productId, label: b.name };
+    })
+    .filter((x): x is { value: string; label: string } => !!x)
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+
   return (
     <CrudPage<Row>
       title="Products & SKUs"
@@ -172,7 +192,7 @@ export function ProductsPage() {
         {
           key: 'productName',
           label: 'Product Name',
-          render: (r) => r.product?.name || r.name || '—',
+          render: (r) => r.product?.brand?.name || r.product?.name || r.name || '—',
         },
         {
           key: 'packVolume',
@@ -195,7 +215,7 @@ export function ProductsPage() {
         {
           name: 'productId',
           label: 'Product Name',
-          options: (products.data ?? []).map((p) => ({ value: p.id, label: p.name })),
+          options: productOptions,
         },
         { name: 'name', label: 'SKU Display Name' },
         {

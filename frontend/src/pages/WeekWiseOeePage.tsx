@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { CalendarRange } from 'lucide-react';
 import api, { type ApiResponse } from '../lib/api';
+import { ChartValueLabels } from '../components/chartLabels';
 import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 import { downtimeColor, downtimeTone, metricColor, metricTone } from '../lib/metricBands';
 
@@ -229,29 +230,41 @@ export default function WeekWiseOeePage() {
           <div className="mb-4 grid gap-4 xl:grid-cols-2">
             <ChartCard title={selectedWeek ? `${kpiScopeLabel} OEE (A / P / Q)` : 'Weekly OEE (A / P / Q)'}>
               <ResponsiveContainer>
-                <BarChart data={charts?.oeeByWeek ?? []}>
+                <BarChart data={charts?.oeeByWeek ?? []} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="oee" name="OEE %" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="availability" name="A %" fill="var(--pillar-availability)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="performance" name="P %" fill="var(--pillar-performance)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="quality" name="Q %" fill="var(--pillar-quality)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="oee" name="OEE %" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+                    <ChartValueLabels suffix="%" />
+                  </Bar>
+                  <Bar dataKey="availability" name="A %" fill="var(--pillar-availability)" radius={[4, 4, 0, 0]}>
+                    <ChartValueLabels suffix="%" />
+                  </Bar>
+                  <Bar dataKey="performance" name="P %" fill="var(--pillar-performance)" radius={[4, 4, 0, 0]}>
+                    <ChartValueLabels suffix="%" />
+                  </Bar>
+                  <Bar dataKey="quality" name="Q %" fill="var(--pillar-quality)" radius={[4, 4, 0, 0]}>
+                    <ChartValueLabels suffix="%" />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
             <ChartCard title={selectedWeek ? `${kpiScopeLabel} Plan vs Actual` : 'Weekly Plan vs Actual'}>
               <ResponsiveContainer>
-                <BarChart data={charts?.planVsActual ?? []}>
+                <BarChart data={charts?.planVsActual ?? []} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="planned" name="Planned" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="planned" name="Planned" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
+                    <ChartValueLabels />
+                  </Bar>
+                  <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+                    <ChartValueLabels />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -260,12 +273,14 @@ export default function WeekWiseOeePage() {
           <div className="mb-4">
             <ChartCard title={selectedWeek ? `${kpiScopeLabel} Downtime (min)` : 'Weekly Downtime (min)'}>
               <ResponsiveContainer>
-                <BarChart data={charts?.downtimeByWeek ?? []}>
+                <BarChart data={charts?.downtimeByWeek ?? []} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
-                  <Bar dataKey="downtime" name="Downtime (min)" fill="var(--chart-4)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="downtime" name="Downtime (min)" fill="var(--chart-4)" radius={[4, 4, 0, 0]}>
+                    <ChartValueLabels />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>

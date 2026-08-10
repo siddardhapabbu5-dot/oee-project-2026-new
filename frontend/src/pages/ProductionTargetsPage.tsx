@@ -79,12 +79,27 @@ export default function ProductionTargetsPage() {
   const [editing, setEditing] = useState<SkuRow | null>(null);
   const [form, setForm] = useState(emptyForm);
 
-  const products = useQuery({
-    queryKey: ['products-options'],
+  const brands = useQuery({
+    queryKey: ['brands-product-options'],
     queryFn: async () =>
-      (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/products', { params: { limit: 100 } })).data
-        .data,
+      (
+        await api.get<
+          ApiResponse<Array<{ id: string; name: string; products?: Array<{ id: string; name: string }> }>>
+        >('/brands', { params: { limit: 500 } })
+      ).data.data,
   });
+
+  const productOptions = useMemo(
+    () =>
+      [...(brands.data ?? [])]
+        .map((b) => {
+          const productId = b.products?.[0]?.id;
+          return productId ? { value: productId, label: b.name } : null;
+        })
+        .filter((x): x is { value: string; label: string } => !!x)
+        .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })),
+    [brands.data],
+  );
 
   const list = useQuery({
     queryKey: ['production-targets', search],
@@ -335,9 +350,9 @@ export default function ProductionTargetsPage() {
               onChange={(e) => setForm({ ...form, productId: e.target.value })}
             >
               <option value="">Select...</option>
-              {(products.data ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
+              {productOptions.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
                 </option>
               ))}
             </select>

@@ -79,6 +79,76 @@ function dateToMinsOfDay(d: Date) {
   return d.getHours() * 60 + d.getMinutes();
 }
 
+/** HH:mm from plan ISO (same as Work Order planning page). */
+function timeFromIso(value?: string | null) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) {
+    const m = String(value).match(/T(\d{2}:\d{2})/);
+    return m?.[1] || '';
+  }
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function addMinutesToTime(timeStr: string, addMins: number) {
+  const base = timeToMins(timeStr);
+  const next = ((base + addMins) % (24 * 60) + 24 * 60) % (24 * 60);
+  return `${pad(Math.floor(next / 60))}:${pad(next % 60)}`;
+}
+
+/**
+ * Hour slots from work-order Start → End (planning page times), in 60‑min steps.
+ * Handles overnight shifts (e.g. 22:00 → 06:00).
+ */
+function planHourSlots(plannedStartTime?: string | null, plannedEndTime?: string | null) {
+  if (!plannedStartTime || !plannedEndTime) return [] as Array<{ from: string; to: string }>;
+  const start = new Date(plannedStartTime);
+  let end = new Date(plannedEndTime);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+  if (end <= start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+
+  const slots: Array<{ from: string; to: string }> = [];
+  let cursor = new Date(start);
+  // Cap at 24 hours to avoid runaway loops
+  for (let i = 0; i < 24 && cursor < end; i++) {
+    const next = new Date(cursor.getTime() + 60 * 60 * 1000);
+    const slotEnd = next > end ? end : next;
+    slots.push({ from: toTimeOnly(cursor), to: toTimeOnly(slotEnd) });
+    cursor = next;
+  }
+  return slots;
+}
+
+function occupiedSlotKeys(entries: Array<{ hourStart: string }>, anchorMins: number) {
+  const keys = new Set<string>();
+  for (const e of entries) {
+    const d = new Date(e.hourStart);
+    if (Number.isNaN(d.getTime())) continue;
+    keys.add(String(shiftOrderKey(e.hourStart, anchorMins)));
+  }
+  return keys;
+}
+
+/** Next free hour within the work-order plan window. */
+function nextFreePlanSlot(
+  plannedStartTime?: string | null,
+  plannedEndTime?: string | null,
+  entries: Array<{ hourStart: string }> = [],
+) {
+  const slots = planHourSlots(plannedStartTime, plannedEndTime);
+  if (slots.length === 0) {
+    const from = timeFromIso(plannedStartTime) || '06:00';
+    return { from, to: addMinutesToTime(from, 60) };
+  }
+  const anchor = shiftAnchorMins(plannedStartTime);
+  const taken = occupiedSlotKeys(entries, anchor);
+  for (const slot of slots) {
+    const key = String(((timeToMins(slot.from) - anchor + 24 * 60) % (24 * 60)));
+    if (!taken.has(key)) return slot;
+  }
+  return slots[slots.length - 1];
+}
+
 function shiftAnchorMins(plannedStartTime?: string | null) {
   if (!plannedStartTime) return 0;
   const d = new Date(plannedStartTime);
@@ -425,24 +495,39 @@ export default function ProductionEntriesPage() {
 
   const hourTarget = useMemo(() => {
     if (!p) return 0;
+    const fromOp =
+      p.plannedOperatingMins > 0 ? Math.max(1, Math.round(p.plannedOperatingMins / 60)) : 0;
     const start = new Date(p.plannedStartTime).getTime();
     const end = new Date(p.plannedEndTime).getTime();
-    const hours = Math.max(1, Math.round((end - start) / 3600000) || 8);
+    const fromSpan = Math.max(1, Math.round((end - start) / 3600000) || 0);
+    const hours = fromOp || fromSpan || 8;
     return Math.round(p.plannedCases / hours);
   }, [p]);
 
+  const planSlots = useMemo(
+    () => planHourSlots(p?.plannedStartTime, p?.plannedEndTime),
+    [p?.plannedStartTime, p?.plannedEndTime],
+  );
+
+  const planStartLabel = timeFromIso(p?.plannedStartTime) || '—';
+  const planEndLabel = timeFromIso(p?.plannedEndTime) || '—';
+
+  // Prefill Time From/To from work-order planning Start/End when work order changes
   useEffect(() => {
-    if (!p) return;
-    const start = new Date(p.plannedStartTime);
-    const end = new Date(start.getTime() + 60 * 60 * 1000);
-    setProdForm((f) => ({
-      ...f,
-      plannedCases: f.plannedCases || String(hourTarget),
-      productionCases: f.productionCases || '',
-      timeFrom: f.timeFrom || toTimeOnly(start),
-      timeTo: f.timeTo || toTimeOnly(end),
-    }));
-  }, [p, hourTarget]);
+    if (!p || editingEntryId) return;
+    const slot = nextFreePlanSlot(p.plannedStartTime, p.plannedEndTime, p.productionEntries);
+    setProdForm({
+      plannedCases: String(hourTarget),
+      productionCases: '',
+      acceptedCases: '',
+      holdCases: '',
+      remarks: '',
+      timeFrom: slot.from,
+      timeTo: slot.to,
+    });
+    // Only when selecting a different work order (not on every entries refresh)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p?.id, hourTarget, editingEntryId]);
 
   const lossCases = useMemo(() => {
     const planned = Number(prodForm.plannedCases || 0);
@@ -491,6 +576,21 @@ export default function ProductionEntriesPage() {
     onSuccess: async () => {
       toast.success(editingEntryId ? 'Hourly entry updated' : 'Production entry saved');
       setEditingEntryId(null);
+      const slot = nextFreePlanSlot(
+        p?.plannedStartTime,
+        p?.plannedEndTime,
+        // Include the slot just saved so we advance to the next free hour
+        [
+          ...(p?.productionEntries ?? []),
+          {
+            hourStart: combineShiftDateTime(
+              planDate,
+              prodForm.timeFrom || '06:00',
+              shiftAnchorMins(p?.plannedStartTime),
+            ).toISOString(),
+          },
+        ],
+      );
       setProdForm((f) => ({
         ...f,
         productionCases: '',
@@ -498,6 +598,8 @@ export default function ProductionEntriesPage() {
         holdCases: '',
         remarks: '',
         plannedCases: String(hourTarget),
+        timeFrom: slot.from,
+        timeTo: slot.to,
       }));
       await qc.invalidateQueries({ queryKey: ['plan', planId] });
     },
@@ -542,14 +644,16 @@ export default function ProductionEntriesPage() {
 
   function cancelEdit() {
     setEditingEntryId(null);
-    setProdForm((f) => ({
-      ...f,
+    const slot = nextFreePlanSlot(p?.plannedStartTime, p?.plannedEndTime, p?.productionEntries ?? []);
+    setProdForm({
       productionCases: '',
       acceptedCases: '',
       holdCases: '',
       remarks: '',
       plannedCases: String(hourTarget),
-    }));
+      timeFrom: slot.from,
+      timeTo: slot.to,
+    });
   }
 
   const saveDowntime = useMutation({
@@ -962,10 +1066,36 @@ export default function ProductionEntriesPage() {
                   <span style={{ color: 'var(--muted)' }}>Hour target: </span>
                   <strong>{hourTarget}</strong>
                 </div>
+                <div>
+                  <span style={{ color: 'var(--muted)' }}>Plan Start: </span>
+                  <strong>{planStartLabel}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--muted)' }}>Plan End: </span>
+                  <strong>{planEndLabel}</strong>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Time From">
+              <div className="grid grid-cols-2 items-start gap-3">
+                {planSlots.length > 0 ? (
+                  <Field label="Hour Slot (from work order)" className="col-span-2 mb-0">
+                    <select
+                      className="input"
+                      value={`${prodForm.timeFrom}|${prodForm.timeTo}`}
+                      onChange={(e) => {
+                        const [from, to] = e.target.value.split('|');
+                        setProdForm({ ...prodForm, timeFrom: from, timeTo: to });
+                      }}
+                    >
+                      {planSlots.map((s) => (
+                        <option key={`${s.from}-${s.to}`} value={`${s.from}|${s.to}`}>
+                          {s.from} – {s.to}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                ) : null}
+                <Field label="Time From" className="mb-0">
                   <input
                     className="input"
                     type="time"
@@ -986,7 +1116,7 @@ export default function ProductionEntriesPage() {
                     }}
                   />
                 </Field>
-                <Field label="Time To">
+                <Field label="Time To" className="mb-0">
                   <input
                     className="input"
                     type="time"
@@ -994,7 +1124,7 @@ export default function ProductionEntriesPage() {
                     onChange={(e) => setProdForm({ ...prodForm, timeTo: e.target.value })}
                   />
                 </Field>
-                <Field label="Planned Cases (Hour Target)">
+                <Field label="Planned Cases (Hour Target)" className="mb-0">
                   <input
                     className="input"
                     type="number"
@@ -1003,7 +1133,7 @@ export default function ProductionEntriesPage() {
                     onChange={(e) => setProdForm({ ...prodForm, plannedCases: e.target.value })}
                   />
                 </Field>
-                <Field label="Production Cases (Per Hour)">
+                <Field label="Production Cases (Per Hour)" className="mb-0">
                   <input
                     className="input"
                     type="number"
@@ -1019,10 +1149,10 @@ export default function ProductionEntriesPage() {
                     }}
                   />
                 </Field>
-                <Field label="Loss of Cases (Per Hour)">
+                <Field label="Loss of Cases (Per Hour)" className="mb-0">
                   <input className="input" type="number" value={String(lossCases)} readOnly />
                 </Field>
-                <Field label="Remarks">
+                <Field label="Remarks" className="mb-0">
                   <input
                     className="input"
                     value={prodForm.remarks || ''}
@@ -1035,8 +1165,8 @@ export default function ProductionEntriesPage() {
                 <h4 className="mb-2 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
                   Quality
                 </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label="Accepted Cases">
+                <div className="grid grid-cols-2 items-start gap-3">
+                  <Field label="Accepted Cases" className="mb-0">
                     <input
                       className="input"
                       type="number"
@@ -1045,7 +1175,7 @@ export default function ProductionEntriesPage() {
                       onChange={(e) => setProdForm({ ...prodForm, acceptedCases: e.target.value })}
                     />
                   </Field>
-                  <Field label="Hold Cases">
+                  <Field label="Hold Cases" className="mb-0">
                     <input
                       className="input"
                       type="number"

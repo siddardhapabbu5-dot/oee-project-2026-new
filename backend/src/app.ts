@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
+import { prisma } from './config/prisma.js';
 import routes from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { swaggerSpec } from './docs/swagger.js';
@@ -38,8 +39,23 @@ export function createApp() {
     }),
   );
 
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', service: 'pms-api', timestamp: new Date().toISOString() });
+  app.get('/health', async (_req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({
+        status: 'ok',
+        service: 'pms-api',
+        database: 'up',
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      res.status(503).json({
+        status: 'error',
+        service: 'pms-api',
+        database: 'down',
+        timestamp: new Date().toISOString(),
+      });
+    }
   });
 
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

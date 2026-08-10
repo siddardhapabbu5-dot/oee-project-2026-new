@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   Activity,
@@ -31,7 +31,8 @@ import {
   YAxis,
 } from 'recharts';
 import api, { type ApiResponse } from '../lib/api';
-import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
+import { ChartCard, CopyCardButton, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
+import { ChartValueLabels } from '../components/chartLabels';
 import { useAuthStore } from '../store';
 import {
   downtimeColor,
@@ -123,6 +124,95 @@ function localYmd(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+type ShiftOpt = { id: string; name: string };
+
+/** Shared control height so date / select / clear sit on one baseline */
+const FILTER_CONTROL = 'input box-border h-10';
+
+function DashboardFilterBar({
+  from,
+  to,
+  shiftId,
+  shifts,
+  onFrom,
+  onTo,
+  onShift,
+  onClear,
+  trailing,
+}: {
+  from: string;
+  to: string;
+  shiftId: string;
+  shifts: ShiftOpt[];
+  onFrom: (v: string) => void;
+  onTo: (v: string) => void;
+  onShift: (v: string) => void;
+  onClear: () => void;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className="panel mb-4 p-4">
+      <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-[1fr_1fr_1fr_auto_auto]">
+        <Field label="From Date" className="mb-0">
+          <input
+            className={FILTER_CONTROL}
+            type="date"
+            value={from}
+            max={today()}
+            onChange={(e) => {
+              const v = e.target.value;
+              onFrom(v);
+              if (to && v > to) onTo(v);
+            }}
+          />
+        </Field>
+        <Field label="To Date" className="mb-0">
+          <input
+            className={FILTER_CONTROL}
+            type="date"
+            value={to}
+            max={today()}
+            onChange={(e) => {
+              const v = e.target.value;
+              onTo(v);
+              if (from && v < from) onFrom(v);
+            }}
+          />
+        </Field>
+        <Field label="Shift" className="mb-0">
+          <select className={FILTER_CONTROL} value={shiftId} onChange={(e) => onShift(e.target.value)}>
+            <option value="">All shifts</option>
+            {shifts.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Clear" className="mb-0 w-10">
+          <button
+            type="button"
+            className={`${FILTER_CONTROL} inline-flex w-10 shrink-0 cursor-pointer items-center justify-center px-0`}
+            onClick={onClear}
+            title="Reset to month start → today"
+            aria-label="Clear filters"
+          >
+            <FilterX size={18} strokeWidth={1.75} />
+          </button>
+        </Field>
+        {trailing ? (
+          <div className="flex flex-col">
+            <span className="mb-1.5 block text-sm font-medium opacity-0 select-none" aria-hidden>
+              ·
+            </span>
+            <div className="flex h-10 items-center">{trailing}</div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 /** Format YYYY-MM-DD → "31 Aug" for chart axes */
 function fmtAxisDate(iso: string) {
   if (!iso || iso.length < 10) return iso;
@@ -156,6 +246,7 @@ export default function DashboardPage() {
   const [from, setFrom] = useState(() => monthStart());
   const [to, setTo] = useState(() => today());
   const [shiftId, setShiftId] = useState('');
+  const oeeCardRef = useRef<HTMLDivElement>(null);
   const rangeValid = Boolean(from && to && from <= to);
 
   const clearFilters = () => {
@@ -236,55 +327,16 @@ export default function DashboardPage() {
           title={`${user?.role === 'LINE_SUPERVISOR' ? 'Line' : 'Plant'} Dashboard`}
           subtitle="OEE = Availability × Performance × Quality"
         />
-        <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-          <Field label="From Date">
-            <input
-              className="input"
-              type="date"
-              value={from}
-              max={today()}
-              onChange={(e) => {
-                const v = e.target.value;
-                setFrom(v);
-                if (to && v > to) setTo(v);
-              }}
-            />
-          </Field>
-          <Field label="To Date">
-            <input
-              className="input"
-              type="date"
-              value={to}
-              max={today()}
-              onChange={(e) => {
-                const v = e.target.value;
-                setTo(v);
-                if (from && v < from) setFrom(v);
-              }}
-            />
-          </Field>
-          <Field label="Shift">
-            <select className="input" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
-              <option value="">All shifts</option>
-              {(shifts.data ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label={'\u00a0'}>
-            <button
-              className="btn btn-secondary inline-flex items-center gap-2"
-              type="button"
-              onClick={clearFilters}
-              title="Reset to month start → today"
-            >
-              <FilterX size={16} strokeWidth={1.75} />
-              Clear
-            </button>
-          </Field>
-        </div>
+        <DashboardFilterBar
+          from={from}
+          to={to}
+          shiftId={shiftId}
+          shifts={shifts.data ?? []}
+          onFrom={setFrom}
+          onTo={setTo}
+          onShift={setShiftId}
+          onClear={clearFilters}
+        />
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
           From date must be on or before To date.
         </div>
@@ -300,53 +352,21 @@ export default function DashboardPage() {
           title={`${user?.role === 'LINE_SUPERVISOR' ? 'Line' : 'Plant'} Dashboard`}
           subtitle="OEE = Availability × Performance × Quality"
         />
-        <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-          <Field label="From Date">
-            <input
-              className="input"
-              type="date"
-              value={from}
-              max={today()}
-              onChange={(e) => {
-                const v = e.target.value;
-                setFrom(v);
-                if (to && v > to) setTo(v);
-              }}
-            />
-          </Field>
-          <Field label="To Date">
-            <input
-              className="input"
-              type="date"
-              value={to}
-              max={today()}
-              onChange={(e) => {
-                const v = e.target.value;
-                setTo(v);
-                if (from && v < from) setFrom(v);
-              }}
-            />
-          </Field>
-          <Field label="Shift">
-            <select className="input min-w-[10rem]" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
-              <option value="">All shifts</option>
-              {(shifts.data ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label={'\u00a0'}>
-            <button
-              className="btn btn-secondary inline-flex items-center gap-2"
-              type="button"
-              onClick={() => void summary.refetch()}
-            >
+        <DashboardFilterBar
+          from={from}
+          to={to}
+          shiftId={shiftId}
+          shifts={shifts.data ?? []}
+          onFrom={setFrom}
+          onTo={setTo}
+          onShift={setShiftId}
+          onClear={clearFilters}
+          trailing={
+            <button className="btn btn-secondary" type="button" onClick={() => void summary.refetch()}>
               Retry
             </button>
-          </Field>
-        </div>
+          }
+        />
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
           Could not load dashboard. Check that the API and PostgreSQL are running, then click Retry.
         </div>
@@ -364,73 +384,41 @@ export default function DashboardPage() {
         subtitle="OEE = Availability × Performance × Quality"
       />
 
-      <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-        <Field label="From Date">
-          <input
-            className="input"
-            type="date"
-            value={from}
-            max={today()}
-            onChange={(e) => {
-              const v = e.target.value;
-              setFrom(v);
-              if (to && v > to) setTo(v);
-            }}
-          />
-        </Field>
-        <Field label="To Date">
-          <input
-            className="input"
-            type="date"
-            value={to}
-            max={today()}
-            onChange={(e) => {
-              const v = e.target.value;
-              setTo(v);
-              if (from && v < from) setFrom(v);
-            }}
-          />
-        </Field>
-        <Field label="Shift">
-          <select className="input min-w-[10rem]" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
-            <option value="">All shifts</option>
-            {(shifts.data ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label={'\u00a0'}>
-          <button
-            className="btn btn-secondary inline-flex items-center gap-2"
-            type="button"
-            onClick={clearFilters}
-            title="Reset to month start → today"
-          >
-            <FilterX size={16} strokeWidth={1.75} />
-            Clear
-          </button>
-        </Field>
-        {summary.isFetching ? (
-          <div className="pb-2 text-xs" style={{ color: 'var(--muted)' }}>
-            Updating…
-          </div>
-        ) : null}
-      </div>
+      <DashboardFilterBar
+        from={from}
+        to={to}
+        shiftId={shiftId}
+        shifts={shifts.data ?? []}
+        onFrom={setFrom}
+        onTo={setTo}
+        onShift={setShiftId}
+        onClear={clearFilters}
+        trailing={
+          summary.isFetching ? (
+            <span className="text-xs" style={{ color: 'var(--muted)' }}>
+              Updating…
+            </span>
+          ) : null
+        }
+      />
 
-      <div className="mb-5 grid gap-4 xl:grid-cols-12">
-        <div className="kpi-featured xl:col-span-4 p-6">
-          <div className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
+      <div className="mb-3 grid gap-3 xl:grid-cols-12">
+        <div ref={oeeCardRef} className="kpi-featured group relative xl:col-span-3 p-4">
+          <CopyCardButton
+            targetRef={oeeCardRef}
+            title="Overall Equipment Effectiveness"
+            className="absolute right-1.5 top-1.5 z-10 opacity-70 transition-opacity group-hover:opacity-100"
+          />
+          <div className="pr-7 text-xs font-medium" style={{ color: 'var(--muted)' }}>
             Overall Equipment Effectiveness
           </div>
-          <div className="mt-2 text-5xl font-semibold tracking-tight" style={{ color: metricColor('oee', k.oee) }}>
+          <div className="mt-1.5 text-3xl font-semibold tracking-tight" style={{ color: metricColor('oee', k.oee) }}>
             {k.oee}%
           </div>
-          <div className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
+          <div className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
             A × P × Q
           </div>
-          <div className="mt-5 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-3 gap-1.5">
             {(
               [
                 { label: 'Availability', value: k.availability, kind: 'availability' as const },
@@ -440,7 +428,7 @@ export default function DashboardPage() {
             ).map((item) => (
               <div
                 key={item.label}
-                className="rounded-lg px-3 py-2"
+                className="rounded-md px-2 py-1.5"
                 style={{
                   background: `color-mix(in oklab, ${metricColor(item.kind, item.value)} 14%, transparent)`,
                   boxShadow: `inset 3px 0 0 ${
@@ -452,16 +440,16 @@ export default function DashboardPage() {
                   }`,
                 }}
               >
-                <div className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                <div className="text-[10px] leading-tight" style={{ color: 'var(--muted)' }}>
                   {item.label}
                 </div>
-                <div className="mt-0.5 text-sm font-semibold" style={{ color: metricColor(item.kind, item.value) }}>
+                <div className="mt-0.5 text-xs font-semibold" style={{ color: metricColor(item.kind, item.value) }}>
                   {item.value}%
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-5 grid grid-cols-2 gap-3 text-xs" style={{ color: 'var(--muted)' }}>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] leading-snug" style={{ color: 'var(--muted)' }}>
             <div>
               Planned:{' '}
               <span className="font-semibold" style={{ color: 'var(--text)' }}>
@@ -494,23 +482,25 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="xl:col-span-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <KpiCard label="Planned Cases" value={k.plannedCases.toLocaleString()} icon={Boxes} />
-          <KpiCard label="Actual Cases" value={k.actualCases.toLocaleString()} icon={Package} tone="info" />
+        <div className="xl:col-span-9 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <KpiCard size="sm" label="Planned Cases" value={k.plannedCases.toLocaleString()} icon={Boxes} />
+          <KpiCard size="sm" label="Actual Cases" value={k.actualCases.toLocaleString()} icon={Package} tone="info" />
           <KpiCard
+            size="sm"
             label="Achievement %"
             value={`${k.achievement}%`}
             tone={metricTone('achievement', k.achievement)}
             icon={Target}
           />
-          <KpiCard label="Production Loss" value={k.productionLoss.toLocaleString()} tone="warn" icon={AlertTriangle} />
-          <KpiCard label="Good Cases" value={k.goodCases.toLocaleString()} tone="good" icon={CheckCircle2} />
-          <KpiCard label="Reject Cases" value={k.rejectCases.toLocaleString()} tone="bad" icon={XCircle} />
+          <KpiCard size="sm" label="Production Loss" value={k.productionLoss.toLocaleString()} tone="warn" icon={AlertTriangle} />
+          <KpiCard size="sm" label="Good Cases" value={k.goodCases.toLocaleString()} tone="good" icon={CheckCircle2} />
+          <KpiCard size="sm" label="Reject Cases" value={k.rejectCases.toLocaleString()} tone="bad" icon={XCircle} />
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <KpiCard
+          size="sm"
           label="Availability"
           value={`${k.availability}%`}
           hint="Operating ÷ (Scheduled − PPL)"
@@ -518,6 +508,7 @@ export default function DashboardPage() {
           tone={metricTone('availability', k.availability)}
         />
         <KpiCard
+          size="sm"
           label="Performance"
           value={`${k.performance}%`}
           hint="(Ideal Cycle × Count) ÷ Operating Time"
@@ -525,14 +516,16 @@ export default function DashboardPage() {
           tone={metricTone('performance', k.performance)}
         />
         <KpiCard
+          size="sm"
           label="Quality"
           value={`${k.quality}%`}
           hint="Good Count ÷ Total Count"
           icon={Percent}
           tone={metricTone('quality', k.quality)}
         />
-        <KpiCard label="Capacity Util." value={`${k.capacityUtilization}%`} hint="Actual ÷ Planned Cases" icon={BarChart3} />
+        <KpiCard size="sm" label="Capacity Util." value={`${k.capacityUtilization}%`} hint="Actual ÷ Planned Cases" icon={BarChart3} />
         <KpiCard
+          size="sm"
           label="Downtime (min)"
           value={Math.round(k.downtime).toLocaleString()}
           icon={Timer}
@@ -547,85 +540,111 @@ export default function DashboardPage() {
                   : '>30 min · Poor'
           }
         />
-        <KpiCard label="Operating Time (min)" value={Math.round(k.runTimeMins ?? 0).toLocaleString()} icon={Clock3} />
+        <KpiCard size="sm" label="Operating Time (min)" value={Math.round(k.runTimeMins ?? 0).toLocaleString()} icon={Clock3} />
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-2">
+      <div className="mt-3 grid gap-3 xl:grid-cols-2">
         <ChartCard title="Production Plan vs Actual">
           <ResponsiveContainer>
-            <BarChart data={c.planVsActual}>
+            <BarChart data={c.planVsActual} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11 }} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip labelFormatter={(v) => fmtAxisDate(String(v))} />
-              <Legend />
-              <Bar dataKey="planned" name="Planned" fill="var(--chart-2)" radius={4} />
-              <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={4} />
+              <Legend wrapperStyle={{ color: '#334155' }} />
+              <Bar dataKey="planned" name="Planned" fill="var(--chart-2)" radius={4}>
+                <ChartValueLabels />
+              </Bar>
+              <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={4}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Daily Production Trend">
           <ResponsiveContainer>
-            <LineChart data={c.dailyTrend}>
+            <LineChart data={c.dailyTrend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11 }} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip labelFormatter={(v) => fmtAxisDate(String(v))} />
-              <Legend />
-              <Line type="monotone" dataKey="actual" name="Actual" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-              <Line type="monotone" dataKey="good" name="Good" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Legend wrapperStyle={{ color: '#334155' }} />
+              <Line type="monotone" dataKey="actual" name="Actual" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }}>
+                <ChartValueLabels />
+              </Line>
+              <Line type="monotone" dataKey="good" name="Good" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }}>
+                <ChartValueLabels />
+              </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Shift Performance">
           <ResponsiveContainer>
-            <BarChart data={c.shiftPerformance}>
+            <BarChart data={c.shiftPerformance} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="shift" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
+              <XAxis dataKey="shift" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip />
-              <Legend />
-              <Bar dataKey="planned" name="Planned" fill="var(--chart-5)" radius={4} />
-              <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={4} />
+              <Legend wrapperStyle={{ color: '#334155' }} />
+              <Bar dataKey="planned" name="Planned" fill="var(--chart-5)" radius={4}>
+                <ChartValueLabels />
+              </Bar>
+              <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={4}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Line Performance">
           <ResponsiveContainer>
-            <BarChart data={c.linePerformance}>
+            <BarChart data={c.linePerformance} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="line" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
+              <XAxis dataKey="line" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip />
-              <Legend />
-              <Bar dataKey="planned" name="Planned" fill="var(--chart-3)" radius={4} />
-              <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={4} />
+              <Legend wrapperStyle={{ color: '#334155' }} />
+              <Bar dataKey="planned" name="Planned" fill="var(--chart-3)" radius={4}>
+                <ChartValueLabels />
+              </Bar>
+              <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={4}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="OEE Trend">
           <ResponsiveContainer>
-            <LineChart data={c.oeeTrend}>
+            <LineChart data={c.oeeTrend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, 100]} />
               <Tooltip labelFormatter={(v) => fmtAxisDate(String(v))} formatter={(v) => [`${v}%`, 'OEE']} />
-              <Line type="monotone" dataKey="oee" name="OEE %" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="oee" name="OEE %" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }}>
+                <ChartValueLabels suffix="%" />
+              </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title={`Weekly OEE Trend (${weekMonth})`}>
           <ResponsiveContainer>
-            <BarChart data={weekWise.data?.charts.oeeByWeek ?? []}>
+            <BarChart data={weekWise.data?.charts.oeeByWeek ?? []} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
+              <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, 100]} />
               <Tooltip />
-              <Legend />
-              <Bar dataKey="oee" name="OEE %" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="availability" name="A %" fill="var(--pillar-availability)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="performance" name="P %" fill="var(--pillar-performance)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="quality" name="Q %" fill="var(--pillar-quality)" radius={[4, 4, 0, 0]} />
+              <Legend wrapperStyle={{ color: '#334155' }} />
+              <Bar dataKey="oee" name="OEE %" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels suffix="%" />
+              </Bar>
+              <Bar dataKey="availability" name="A %" fill="var(--pillar-availability)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels suffix="%" />
+              </Bar>
+              <Bar dataKey="performance" name="P %" fill="var(--pillar-performance)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels suffix="%" />
+              </Bar>
+              <Bar dataKey="quality" name="Q %" fill="var(--pillar-quality)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels suffix="%" />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -693,28 +712,30 @@ export default function DashboardPage() {
         </ChartCard>
         <ChartCard title="Product Contribution">
           <ResponsiveContainer>
-            <BarChart data={c.productContribution} margin={{ bottom: 28 }}>
+            <BarChart data={c.productContribution} margin={{ top: 18, bottom: 28, right: 8, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis
                 dataKey="name"
-                tick={{ fontSize: 10 }}
+                tick={{ fontSize: 10, fill: '#64748b' }}
                 interval={0}
                 angle={c.productContribution.length > 2 ? -20 : 0}
                 textAnchor={c.productContribution.length > 2 ? 'end' : 'middle'}
                 height={50}
               />
-              <YAxis tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
               <Tooltip />
-              <Bar dataKey="actual" name="Actual Cases" fill="var(--chart-1)" radius={4} />
+              <Bar dataKey="actual" name="Actual Cases" fill="var(--chart-1)" radius={4}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Capacity Utilisation">
           <ResponsiveContainer>
-            <LineChart data={c.capacityUtilization}>
+            <LineChart data={c.capacityUtilization} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={fmtAxisDate} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, 100]} />
               <Tooltip
                 labelFormatter={(v) => fmtAxisDate(String(v))}
                 formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Utilisation']}
@@ -728,7 +749,9 @@ export default function DashboardPage() {
                 dot={{ r: 3 }}
                 activeDot={{ r: 5 }}
                 connectNulls
-              />
+              >
+                <ChartValueLabels suffix="%" />
+              </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>

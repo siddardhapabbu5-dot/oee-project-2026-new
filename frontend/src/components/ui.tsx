@@ -1,6 +1,8 @@
 import clsx from 'clsx';
-import { ChevronDown, ChevronUp, ChevronsUpDown, type LucideIcon } from 'lucide-react';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { Check, ChevronDown, ChevronUp, ChevronsUpDown, Copy, type LucideIcon } from 'lucide-react';
+import { useRef, useState, type ButtonHTMLAttributes, type MouseEvent, type ReactNode, type RefObject } from 'react';
+import toast from 'react-hot-toast';
+import { copyCardImage } from '../lib/copyCard';
 
 export function PageHeader({
   title,
@@ -28,19 +30,68 @@ export function PageHeader({
   );
 }
 
+/** Copy dashboard card as PNG (clipboard, or download fallback). */
+export function CopyCardButton({
+  targetRef,
+  title,
+  className,
+}: {
+  targetRef: RefObject<HTMLElement | null>;
+  title: string;
+  className?: string;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function handleCopy(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const node = targetRef.current;
+    if (!node || busy) return;
+    setBusy(true);
+    try {
+      const result = await copyCardImage(node, title);
+      setDone(true);
+      toast.success(result === 'copied' ? 'Card copied' : 'Card downloaded');
+      window.setTimeout(() => setDone(false), 1600);
+    } catch {
+      toast.error('Copy failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      data-no-copy="true"
+      className={clsx('btn-icon', className)}
+      title="Copy card"
+      aria-label={`Copy ${title}`}
+      disabled={busy}
+      onClick={(e) => void handleCopy(e)}
+    >
+      {done ? <Check size={15} strokeWidth={2} /> : <Copy size={15} strokeWidth={1.75} />}
+    </button>
+  );
+}
+
 export function KpiCard({
   label,
   value,
   hint,
   tone = 'default',
   icon: Icon,
+  size = 'md',
 }: {
   label: string;
   value: string | number;
   hint?: string;
   tone?: 'default' | 'good' | 'warn' | 'bad' | 'info' | 'excellent' | 'fair' | 'average' | 'poor' | 'critical';
   icon?: LucideIcon;
+  size?: 'sm' | 'md';
 }) {
+  const cardRef = useRef<HTMLDivElement>(null);
   const color =
     tone === 'excellent'
       ? 'var(--band-excellent)'
@@ -83,31 +134,40 @@ export function KpiCard({
                       : 'var(--accent-soft)';
 
   const valueColor = tone === 'default' ? 'var(--text)' : color;
+  const compact = size === 'sm';
 
   return (
-    <div className="panel p-5">
-      <div className="flex items-start justify-between gap-3">
+    <div ref={cardRef} className={clsx(compact ? 'panel p-3' : 'panel p-5')}>
+      <div className={`flex items-start justify-between ${compact ? 'gap-2' : 'gap-3'}`}>
         <div className="min-w-0">
-          <div className="text-sm font-medium" style={{ color: 'var(--muted)' }}>
+          <div className={`font-medium ${compact ? 'text-xs' : 'text-sm'}`} style={{ color: 'var(--muted)' }}>
             {label}
           </div>
           <div
-            className="mt-2 text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums"
+            className={`font-semibold leading-none tracking-tight tabular-nums ${
+              compact ? 'mt-1 text-xl' : 'mt-2 text-[1.75rem]'
+            }`}
             style={{ color: valueColor }}
           >
             {value}
           </div>
           {hint ? (
-            <div className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+            <div className={`mt-1.5 text-xs leading-snug ${compact ? 'line-clamp-2' : ''}`} style={{ color: 'var(--muted)' }}>
               {hint}
             </div>
           ) : null}
         </div>
-        {Icon ? (
-          <span className="icon-box" style={{ background: soft, color }}>
-            <Icon size={20} strokeWidth={1.75} />
-          </span>
-        ) : null}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <CopyCardButton targetRef={cardRef} title={label} />
+          {Icon ? (
+            <span
+              className={compact ? 'icon-box !h-8 !w-8 shrink-0' : 'icon-box'}
+              style={{ background: soft, color }}
+            >
+              <Icon size={compact ? 15 : 20} strokeWidth={1.75} />
+            </span>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -126,14 +186,21 @@ export function ChartCard({
   className?: string;
   bodyClassName?: string;
 }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+
   return (
-    <div className={clsx('panel p-5', className)}>
-      <h3 className={clsx('text-base font-medium', subtitle ? 'mb-1' : 'mb-4')}>{title}</h3>
-      {subtitle ? (
-        <p className="mb-4 text-xs" style={{ color: 'var(--muted)' }}>
-          {subtitle}
-        </p>
-      ) : null}
+    <div ref={cardRef} className={clsx('panel group relative p-5', className)}>
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className={clsx('text-base font-medium', subtitle ? 'mb-1' : 'mb-3')}>{title}</h3>
+          {subtitle ? (
+            <p className="mb-3 text-xs" style={{ color: 'var(--muted)' }}>
+              {subtitle}
+            </p>
+          ) : null}
+        </div>
+        <CopyCardButton targetRef={cardRef} title={title} className="shrink-0 opacity-70 transition-opacity group-hover:opacity-100" />
+      </div>
       <div className={clsx('h-64 w-full', bodyClassName)}>{children}</div>
     </div>
   );

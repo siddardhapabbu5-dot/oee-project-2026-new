@@ -18,6 +18,7 @@ export function CrudPage<T extends { id: string }>({
   canEdit = true,
   canDelete = true,
   queryKey,
+  invalidateKeys = [],
 }: {
   title: string;
   subtitle?: string;
@@ -29,6 +30,8 @@ export function CrudPage<T extends { id: string }>({
   canEdit?: boolean;
   canDelete?: boolean;
   queryKey?: string;
+  /** Extra react-query keys to refresh after create/update/delete (e.g. linked masters). */
+  invalidateKeys?: string[];
 }) {
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
@@ -38,6 +41,13 @@ export function CrudPage<T extends { id: string }>({
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const qc = useQueryClient();
   const key = queryKey ?? endpoint;
+
+  async function refreshRelated() {
+    await qc.invalidateQueries({ queryKey: [key] });
+    for (const k of invalidateKeys) {
+      await qc.invalidateQueries({ queryKey: [k] });
+    }
+  }
 
   const list = useQuery({
     queryKey: [key, search],
@@ -67,7 +77,7 @@ export function CrudPage<T extends { id: string }>({
       setOpen(false);
       setEditing(null);
       setForm({});
-      await qc.invalidateQueries({ queryKey: [key] });
+      await refreshRelated();
     },
     onError: (err: unknown) => {
       toast.error((err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message || 'Save failed');
@@ -78,7 +88,7 @@ export function CrudPage<T extends { id: string }>({
     mutationFn: async (id: string) => api.delete(`${endpoint}/${id}`),
     onSuccess: async () => {
       toast.success('Deleted');
-      await qc.invalidateQueries({ queryKey: [key] });
+      await refreshRelated();
     },
   });
 

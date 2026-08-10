@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { FilterX } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -13,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import api, { type ApiResponse } from '../lib/api';
+import { ChartValueLabels } from '../components/chartLabels';
 import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader, Badge } from '../components/ui';
 import { metricColor, metricTone } from '../lib/metricBands';
 
@@ -101,6 +103,94 @@ export default function LineWiseOverviewPage() {
 
   const rangeValid = Boolean(from && to && from <= to);
 
+  const clearFilters = () => {
+    setFrom(monthStart());
+    setTo(today());
+  };
+
+  const setTodayRange = () => {
+    const tdy = today();
+    setFrom(tdy);
+    setTo(tdy);
+  };
+
+  const FILTER_CONTROL = 'input box-border h-10';
+
+  function DateFilters({
+    summary,
+    showActions = true,
+  }: {
+    summary?: ReactNode;
+    showActions?: boolean;
+  }) {
+    return (
+      <div className="panel mb-4 p-4">
+        <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-[1fr_1fr_auto_auto_minmax(0,1.4fr)]">
+          <Field label="From Date" className="mb-0">
+            <input
+              className={FILTER_CONTROL}
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => {
+                const v = e.target.value;
+                setFrom(v);
+                if (to && v > to) setTo(v);
+              }}
+            />
+          </Field>
+          <Field label="To Date" className="mb-0">
+            <input
+              className={FILTER_CONTROL}
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => {
+                const v = e.target.value;
+                setTo(v);
+                if (from && v < from) setFrom(v);
+              }}
+            />
+          </Field>
+          {showActions ? (
+            <Field label="Today" className="mb-0">
+              <button
+                type="button"
+                className={`${FILTER_CONTROL} cursor-pointer px-3 font-medium`}
+                onClick={setTodayRange}
+              >
+                Today
+              </button>
+            </Field>
+          ) : null}
+          {showActions ? (
+            <Field label="Clear" className="mb-0 w-10">
+              <button
+                type="button"
+                className={`${FILTER_CONTROL} inline-flex w-10 shrink-0 cursor-pointer items-center justify-center px-0`}
+                onClick={clearFilters}
+                title="Reset to month start → today"
+                aria-label="Clear filters"
+              >
+                <FilterX size={18} strokeWidth={1.75} />
+              </button>
+            </Field>
+          ) : null}
+          {summary ? (
+            <div className="col-span-2 flex flex-col sm:col-span-1">
+              <span className="mb-1.5 block text-sm font-medium opacity-0 select-none" aria-hidden>
+                ·
+              </span>
+              <div className="flex min-h-10 items-center text-sm" style={{ color: 'var(--muted)' }}>
+                {summary}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   const overview = useQuery({
     queryKey: ['line-wise-overview', from, to],
     enabled: rangeValid,
@@ -112,24 +202,12 @@ export default function LineWiseOverviewPage() {
       ).data.data,
   });
 
-  const plants = useMemo(() => {
-    const set = new Set((overview.data?.lines ?? []).map((l) => l.plantName));
-    return [...set];
-  }, [overview.data]);
-
   if (overview.isLoading) return <LoadingBlock />;
   if (!rangeValid) {
     return (
       <div>
         <PageHeader title="Line-wise Overview" subtitle="Compare every line — planned vs actual, downtime, and OEE (A × P × Q)" />
-        <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-          <Field label="From Date">
-            <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </Field>
-          <Field label="To Date">
-            <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </Field>
-        </div>
+        <DateFilters />
         <div className="panel p-6 text-sm" style={{ color: 'var(--muted)' }}>
           From date must be on or before To date.
         </div>
@@ -140,14 +218,7 @@ export default function LineWiseOverviewPage() {
     return (
       <div>
         <PageHeader title="Line-wise Overview" subtitle="Compare every line — planned vs actual, downtime, and OEE (A × P × Q)" />
-        <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-          <Field label="From Date">
-            <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </Field>
-          <Field label="To Date">
-            <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </Field>
-        </div>
+        <DateFilters />
         <div className="panel p-6 text-sm" style={{ color: 'var(--muted)' }}>
           Failed to load line-wise overview. Check that the API is running.
         </div>
@@ -166,47 +237,16 @@ export default function LineWiseOverviewPage() {
         subtitle="Compare every line — planned vs actual, downtime, and OEE (A × P × Q)"
       />
 
-      <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-        <Field label="From Date">
-          <input
-            className="input"
-            type="date"
-            value={from}
-            max={to || undefined}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </Field>
-        <Field label="To Date">
-          <input
-            className="input"
-            type="date"
-            value={to}
-            min={from || undefined}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </Field>
-        <button
-          className="btn btn-secondary"
-          type="button"
-          onClick={() => {
-            const tdy = today();
-            setFrom(tdy);
-            setTo(tdy);
-          }}
-        >
-          Today
-        </button>
-        <div className="pb-2 text-sm" style={{ color: 'var(--muted)' }}>
-          Line-wise for <strong style={{ color: 'var(--text)' }}>{d.from}</strong>
-          {' → '}
-          <strong style={{ color: 'var(--text)' }}>{d.to}</strong>
-          {' · '}
-          {plants.length ? plants.join(' · ') : '—'}
-          {' · '}
-          {t.activeLines}/{t.lineCount} lines with plans
-          {overview.isFetching ? ' · updating…' : ''}
-        </div>
-      </div>
+      <DateFilters
+        summary={
+          <>
+            Line-wise for <strong style={{ color: 'var(--text)' }}>{d.from}</strong>
+            {' → '}
+            <strong style={{ color: 'var(--text)' }}>{d.to}</strong>
+            {overview.isFetching ? ' · updating…' : ''}
+          </>
+        }
+      />
 
       <div className="panel mb-4 p-4 text-sm" style={{ color: 'var(--muted)' }}>
         <div className="font-semibold" style={{ color: 'var(--text)' }}>
@@ -253,29 +293,41 @@ export default function LineWiseOverviewPage() {
       <div className="mb-4 grid gap-4 xl:grid-cols-2">
         <ChartCard title="Line-wise OEE (A / P / Q)">
           <ResponsiveContainer>
-            <BarChart data={d.charts.oeeByLine}>
+            <BarChart data={d.charts.oeeByLine} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="line" tick={{ fontSize: 11 }} />
-              <YAxis domain={[0, 100]} />
+              <XAxis dataKey="line" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis domain={[0, 100]} tick={{ fill: '#64748b' }} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="oee" name="OEE %" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="availability" name="A %" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="performance" name="P %" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="quality" name="Q %" fill="var(--chart-4)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="oee" name="OEE %" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels suffix="%" />
+              </Bar>
+              <Bar dataKey="availability" name="A %" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels suffix="%" />
+              </Bar>
+              <Bar dataKey="performance" name="P %" fill="var(--chart-3)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels suffix="%" />
+              </Bar>
+              <Bar dataKey="quality" name="Q %" fill="var(--chart-4)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels suffix="%" />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Line-wise Plan vs Actual">
           <ResponsiveContainer>
-            <BarChart data={d.charts.planVsActual}>
+            <BarChart data={d.charts.planVsActual} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="line" tick={{ fontSize: 11 }} />
-              <YAxis />
+              <XAxis dataKey="line" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fill: '#64748b' }} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="planned" name="Planned" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="planned" name="Planned" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
+              <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -287,10 +339,10 @@ export default function LineWiseOverviewPage() {
           subtitle="How downtime changes day by day in the selected range — this is the trend view."
         >
           <ResponsiveContainer>
-            <LineChart data={d.charts.downtimeTrend ?? []}>
+            <LineChart data={d.charts.downtimeTrend ?? []} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fill: '#64748b' }} />
               <Tooltip />
               <Legend />
               <Line
@@ -300,7 +352,9 @@ export default function LineWiseOverviewPage() {
                 stroke="var(--chart-5)"
                 strokeWidth={2}
                 dot={{ r: 3 }}
-              />
+              >
+                <ChartValueLabels />
+              </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -309,12 +363,14 @@ export default function LineWiseOverviewPage() {
           subtitle="Week-01 = days 1–7, Week-02 = 8–14, Week-03 = 15–21, Week-04 = 22–end of month."
         >
           <ResponsiveContainer>
-            <BarChart data={d.charts.weeklyTrend ?? []}>
+            <BarChart data={d.charts.weeklyTrend ?? []} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-              <YAxis />
+              <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fill: '#64748b' }} />
               <Tooltip />
-              <Bar dataKey="downtime" name="Downtime (min)" fill="var(--chart-5)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="downtime" name="Downtime (min)" fill="var(--chart-5)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -326,12 +382,14 @@ export default function LineWiseOverviewPage() {
           subtitle="Comparison across lines for the whole date range — not a time trend. One bar = total DT for that line."
         >
           <ResponsiveContainer>
-            <BarChart data={d.charts.downtimeByLine}>
+            <BarChart data={d.charts.downtimeByLine} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="line" tick={{ fontSize: 11 }} />
-              <YAxis />
+              <XAxis dataKey="line" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fill: '#64748b' }} />
               <Tooltip />
-              <Bar dataKey="downtime" name="Total DT (min)" fill="var(--chart-5)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="downtime" name="Total DT (min)" fill="var(--chart-5)" radius={[4, 4, 0, 0]}>
+                <ChartValueLabels />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -340,10 +398,10 @@ export default function LineWiseOverviewPage() {
           subtitle="Plant OEE by calendar week in the selected range."
         >
           <ResponsiveContainer>
-            <LineChart data={d.charts.weeklyTrend ?? []}>
+            <LineChart data={d.charts.weeklyTrend ?? []} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-              <YAxis domain={[0, 100]} />
+              <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis domain={[0, 100]} tick={{ fill: '#64748b' }} />
               <Tooltip />
               <Legend />
               <Line
@@ -353,7 +411,9 @@ export default function LineWiseOverviewPage() {
                 stroke="var(--chart-1)"
                 strokeWidth={2}
                 dot={{ r: 3 }}
-              />
+              >
+                <ChartValueLabels suffix="%" />
+              </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
