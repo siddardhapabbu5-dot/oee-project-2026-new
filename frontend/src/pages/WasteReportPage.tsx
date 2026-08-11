@@ -16,7 +16,8 @@ import {
 import { PackageX, Plus, Recycle, TriangleAlert } from 'lucide-react';
 import api, { type ApiResponse } from '../lib/api';
 import { ChartValueLabels } from '../components/chartLabels';
-import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
+import { FilterBar, FilterField, FILTER_CTRL } from '../components/FilterBar';
+import { ChartCard, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 import { formatWorkOrder } from '../lib/workOrder';
 
 type WasteReport = {
@@ -136,15 +137,15 @@ export default function WasteReportPage() {
         }
       />
 
-      <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-        <Field label="From Date">
-          <input className="input" type="date" value={from} max={today()} onChange={(e) => setFrom(e.target.value)} />
-        </Field>
-        <Field label="To Date">
-          <input className="input" type="date" value={to} max={today()} onChange={(e) => setTo(e.target.value)} />
-        </Field>
-        <Field label="Shift">
-          <select className="input min-w-[10rem]" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+      <FilterBar>
+        <FilterField label="From Date">
+          <input className={FILTER_CTRL} type="date" value={from} max={today()} onChange={(e) => setFrom(e.target.value)} />
+        </FilterField>
+        <FilterField label="To Date">
+          <input className={FILTER_CTRL} type="date" value={to} max={today()} onChange={(e) => setTo(e.target.value)} />
+        </FilterField>
+        <FilterField label="Shift">
+          <select className={FILTER_CTRL} value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
             <option value="">All shifts</option>
             {(shifts.data ?? []).map((s) => (
               <option key={s.id} value={s.id}>
@@ -152,9 +153,9 @@ export default function WasteReportPage() {
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Material">
-          <select className="input min-w-[10rem]" value={materialId} onChange={(e) => setMaterialId(e.target.value)}>
+        </FilterField>
+        <FilterField label="Material">
+          <select className={FILTER_CTRL} value={materialId} onChange={(e) => setMaterialId(e.target.value)}>
             <option value="">All materials</option>
             {(materials.data ?? []).map((m) => (
               <option key={m.id} value={m.id}>
@@ -162,8 +163,8 @@ export default function WasteReportPage() {
               </option>
             ))}
           </select>
-        </Field>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Total Wastage Qty" value={k.totalQuantity.toLocaleString()} icon={PackageX} tone="warn" />

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api, { type ApiResponse } from '../lib/api';
+import { FilterField, FILTER_CTRL } from '../components/FilterBar';
 import { Field, IconButton, LoadingBlock, PageHeader, KpiCard } from '../components/ui';
 import { formatWorkOrder } from '../lib/workOrder';
 import { metricColor } from '../lib/metricBands';
@@ -871,18 +872,18 @@ export default function ProductionEntriesPage() {
 
       <div className="panel mb-4 p-4">
         <h3 className="mb-3 font-semibold">Download Reports</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Report Date">
+        <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <FilterField label="Report Date">
             <input
-              className="input"
+              className={FILTER_CTRL}
               type="date"
               value={reportDate}
               onChange={(e) => setReportDate(e.target.value)}
             />
-          </Field>
-          <Field label="Shift">
+          </FilterField>
+          <FilterField label="Shift">
             <select
-              className="input"
+              className={FILTER_CTRL}
               value={reportShiftId}
               onChange={(e) => setReportShiftId(e.target.value)}
             >
@@ -893,27 +894,27 @@ export default function ProductionEntriesPage() {
                 </option>
               ))}
             </select>
-          </Field>
-          <div className="flex items-end">
+          </FilterField>
+          <FilterField label="Day-wise">
             <button
-              className="btn btn-secondary w-full"
+              className={`${FILTER_CTRL} w-full cursor-pointer px-3 font-medium`}
               type="button"
               disabled={!reportDate || downloading === 'day'}
               onClick={() => void downloadDayReport()}
             >
               {downloading === 'day' ? 'Downloading...' : 'Download Day-wise'}
             </button>
-          </div>
-          <div className="flex items-end">
+          </FilterField>
+          <FilterField label="Shift-wise">
             <button
-              className="btn btn-secondary w-full"
+              className={`${FILTER_CTRL} w-full cursor-pointer px-3 font-medium`}
               type="button"
               disabled={!reportDate || !reportShiftId || downloading === 'shift'}
               onClick={() => void downloadShiftReport()}
             >
               {downloading === 'shift' ? 'Downloading...' : 'Download Shift-wise'}
             </button>
-          </div>
+          </FilterField>
         </div>
         <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
           Filters work orders by date and shift. Day-wise export uses the date; Shift-wise export needs a shift

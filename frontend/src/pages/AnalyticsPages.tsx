@@ -18,6 +18,7 @@ import {
 } from 'recharts';
 import api, { type ApiResponse } from '../lib/api';
 import { ChartValueLabels } from '../components/chartLabels';
+import { FilterBar, FilterField, FILTER_CTRL } from '../components/FilterBar';
 import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader, Badge } from '../components/ui';
 import { StatusBadge } from '../components/CrudPage';
 import { useMemo, useState } from 'react';
@@ -167,10 +168,10 @@ export function OeePage() {
     return (
       <div>
         <PageHeader title="OEE Dashboard" subtitle="OEE = Availability × Performance × Quality" />
-        <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-          <Field label="From Date">
+        <FilterBar>
+          <FilterField label="From Date">
             <input
-              className="input"
+              className={FILTER_CTRL}
               type="date"
               value={from}
               max={todayLocal()}
@@ -180,10 +181,10 @@ export function OeePage() {
                 if (to && v > to) setTo(v);
               }}
             />
-          </Field>
-          <Field label="To Date">
+          </FilterField>
+          <FilterField label="To Date">
             <input
-              className="input"
+              className={FILTER_CTRL}
               type="date"
               value={to}
               max={todayLocal()}
@@ -193,9 +194,9 @@ export function OeePage() {
                 if (from && v < from) setFrom(v);
               }}
             />
-          </Field>
-          <Field label="Shift">
-            <select className="input min-w-[10rem]" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+          </FilterField>
+          <FilterField label="Shift">
+            <select className={FILTER_CTRL} value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
               <option value="">All shifts</option>
               {(shifts.data ?? []).map((s) => (
                 <option key={s.id} value={s.id}>
@@ -203,8 +204,8 @@ export function OeePage() {
                 </option>
               ))}
             </select>
-          </Field>
-        </div>
+          </FilterField>
+        </FilterBar>
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
           From date must be on or before To date.
         </div>
@@ -217,17 +218,23 @@ export function OeePage() {
     return (
       <div>
         <PageHeader title="OEE Dashboard" subtitle="OEE = Availability × Performance × Quality" />
-        <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-          <Field label="From Date">
-            <input className="input" type="date" value={from} max={todayLocal()} onChange={(e) => setFrom(e.target.value)} />
-          </Field>
-          <Field label="To Date">
-            <input className="input" type="date" value={to} max={todayLocal()} onChange={(e) => setTo(e.target.value)} />
-          </Field>
-          <button className="btn btn-secondary" type="button" onClick={() => void summary.refetch()}>
-            Retry
-          </button>
-        </div>
+        <FilterBar>
+          <FilterField label="From Date">
+            <input className={FILTER_CTRL} type="date" value={from} max={todayLocal()} onChange={(e) => setFrom(e.target.value)} />
+          </FilterField>
+          <FilterField label="To Date">
+            <input className={FILTER_CTRL} type="date" value={to} max={todayLocal()} onChange={(e) => setTo(e.target.value)} />
+          </FilterField>
+          <FilterField label="Retry">
+            <button
+              className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
+              type="button"
+              onClick={() => void summary.refetch()}
+            >
+              Retry
+            </button>
+          </FilterField>
+        </FilterBar>
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
           Could not load OEE dashboard. Check that the API and PostgreSQL (Docker) are running, then click Retry.
         </div>
@@ -245,10 +252,10 @@ export function OeePage() {
         subtitle="OEE = Availability × Performance × Quality"
       />
 
-      <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-        <Field label="From Date">
+      <FilterBar>
+        <FilterField label="From Date">
           <input
-            className="input"
+            className={FILTER_CTRL}
             type="date"
             value={from}
             max={todayLocal()}
@@ -258,10 +265,10 @@ export function OeePage() {
               if (to && v > to) setTo(v);
             }}
           />
-        </Field>
-        <Field label="To Date">
+        </FilterField>
+        <FilterField label="To Date">
           <input
-            className="input"
+            className={FILTER_CTRL}
             type="date"
             value={to}
             max={todayLocal()}
@@ -271,9 +278,9 @@ export function OeePage() {
               if (from && v < from) setFrom(v);
             }}
           />
-        </Field>
-        <Field label="Shift">
-          <select className="input min-w-[10rem]" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+        </FilterField>
+        <FilterField label="Shift">
+          <select className={FILTER_CTRL} value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
             <option value="">All shifts</option>
             {(shifts.data ?? []).map((s) => (
               <option key={s.id} value={s.id}>
@@ -281,8 +288,8 @@ export function OeePage() {
               </option>
             ))}
           </select>
-        </Field>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="OEE" value={`${k.oee}%`} tone={metricTone('oee', k.oee)} />
@@ -556,28 +563,28 @@ export function PlanVsActualPage() {
         }
       />
 
-      <div className="panel mb-4 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-        <Field label="From Date">
+      <FilterBar columnsClassName="sm:grid-cols-3 lg:grid-cols-[1fr_1fr_1fr_1fr_auto_minmax(0,1.2fr)]">
+        <FilterField label="From Date">
           <input
-            className="input"
+            className={FILTER_CTRL}
             type="date"
             value={from}
             max={to || undefined}
             onChange={(e) => setFrom(e.target.value)}
           />
-        </Field>
-        <Field label="To Date">
+        </FilterField>
+        <FilterField label="To Date">
           <input
-            className="input"
+            className={FILTER_CTRL}
             type="date"
             value={to}
             min={from || undefined}
             onChange={(e) => setTo(e.target.value)}
           />
-        </Field>
-        <Field label="Brand">
+        </FilterField>
+        <FilterField label="Brand">
           <select
-            className="input"
+            className={FILTER_CTRL}
             value={brandId}
             onChange={(e) => {
               setBrandId(e.target.value);
@@ -591,10 +598,10 @@ export function PlanVsActualPage() {
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="SKU">
+        </FilterField>
+        <FilterField label="SKU">
           <select
-            className="input"
+            className={FILTER_CTRL}
             value={packVolume}
             onChange={(e) => {
               setPackVolume(e.target.value);
@@ -608,11 +615,11 @@ export function PlanVsActualPage() {
               </option>
             ))}
           </select>
-        </Field>
-        <div className="flex items-end gap-2 sm:col-span-2">
+        </FilterField>
+        <FilterField label="Reset">
           <button
-            className="btn btn-secondary"
             type="button"
+            className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
             onClick={() => {
               setFrom(monthStartLocal());
               setTo(today());
@@ -623,12 +630,17 @@ export function PlanVsActualPage() {
           >
             Reset
           </button>
-          <div className="pb-2 text-sm" style={{ color: 'var(--muted)' }}>
+        </FilterField>
+        <div className="col-span-2 flex flex-col sm:col-span-1">
+          <span className="mb-1.5 block text-sm font-medium opacity-0 select-none" aria-hidden>
+            ·
+          </span>
+          <div className="flex min-h-10 items-center text-sm tabular-nums" style={{ color: 'var(--muted)' }}>
             {d.from} → {d.to}
             {report.isFetching ? ' · updating…' : ''}
           </div>
         </div>
-      </div>
+      </FilterBar>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Planned Cases" value={t.plannedCases.toLocaleString()} />
@@ -811,15 +823,15 @@ export function DowntimeAnalysisPage() {
         subtitle="By category, machine, line & reason — with period filters"
       />
 
-      <div className="panel mb-4 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="From">
-          <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </Field>
-        <Field label="To">
-          <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </Field>
-        <Field label="Line">
-          <select className="input" value={lineId} onChange={(e) => setLineId(e.target.value)}>
+      <FilterBar>
+        <FilterField label="From">
+          <input className={FILTER_CTRL} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </FilterField>
+        <FilterField label="To">
+          <input className={FILTER_CTRL} type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        </FilterField>
+        <FilterField label="Line">
+          <select className={FILTER_CTRL} value={lineId} onChange={(e) => setLineId(e.target.value)}>
             <option value="">All lines</option>
             {(lines.data ?? []).map((l) => (
               <option key={l.id} value={l.id}>
@@ -827,11 +839,11 @@ export function DowntimeAnalysisPage() {
               </option>
             ))}
           </select>
-        </Field>
-        <div className="flex items-end gap-2">
+        </FilterField>
+        <FilterField label="This month">
           <button
             type="button"
-            className="btn btn-secondary"
+            className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
             onClick={() => {
               setFrom(monthStartLocal());
               setTo(today());
@@ -839,8 +851,8 @@ export function DowntimeAnalysisPage() {
           >
             This month
           </button>
-        </div>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Downtime Events" value={k.totalEvents.toLocaleString()} />
@@ -1103,15 +1115,15 @@ export function ChangeoverAnalysisPage() {
         subtitle="Standard vs actual time · Planned / Unplanned · By type & line"
       />
 
-      <div className="panel mb-4 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="From">
-          <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </Field>
-        <Field label="To">
-          <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </Field>
-        <Field label="Line">
-          <select className="input" value={lineId} onChange={(e) => setLineId(e.target.value)}>
+      <FilterBar>
+        <FilterField label="From">
+          <input className={FILTER_CTRL} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </FilterField>
+        <FilterField label="To">
+          <input className={FILTER_CTRL} type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        </FilterField>
+        <FilterField label="Line">
+          <select className={FILTER_CTRL} value={lineId} onChange={(e) => setLineId(e.target.value)}>
             <option value="">All lines</option>
             {(lines.data ?? []).map((l) => (
               <option key={l.id} value={l.id}>
@@ -1119,11 +1131,11 @@ export function ChangeoverAnalysisPage() {
               </option>
             ))}
           </select>
-        </Field>
-        <div className="flex items-end gap-2">
+        </FilterField>
+        <FilterField label="This month">
           <button
             type="button"
-            className="btn btn-secondary"
+            className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
             onClick={() => {
               setFrom(monthStartLocal());
               setTo(today());
@@ -1131,8 +1143,8 @@ export function ChangeoverAnalysisPage() {
           >
             This month
           </button>
-        </div>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Total Changeovers" value={k.totalChangeovers.toLocaleString()} />
@@ -1396,52 +1408,50 @@ export function ManpowerAnalysisPage() {
   });
 
   const filters = (
-    <div className="panel mb-4 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Field label="From">
+    <FilterBar columnsClassName="sm:grid-cols-2 lg:grid-cols-5">
+      <FilterField label="From">
         <input
-          className="input"
+          className={FILTER_CTRL}
           type="date"
           value={from}
           max={to || undefined}
           onChange={(e) => setFrom(e.target.value)}
         />
-      </Field>
-      <Field label="To">
+      </FilterField>
+      <FilterField label="To">
         <input
-          className="input"
+          className={FILTER_CTRL}
           type="date"
           value={to}
           min={from || undefined}
           max={today()}
           onChange={(e) => setTo(e.target.value)}
         />
-      </Field>
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="Line">
-          <select className="input" value={lineId} onChange={(e) => setLineId(e.target.value)}>
-            <option value="">All lines</option>
-            {(lines.data ?? []).map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.code || l.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Shift">
-          <select className="input" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
-            <option value="">All shifts</option>
-            {(shifts.data ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </div>
-      <div className="flex flex-wrap items-end gap-2">
+      </FilterField>
+      <FilterField label="Line">
+        <select className={FILTER_CTRL} value={lineId} onChange={(e) => setLineId(e.target.value)}>
+          <option value="">All lines</option>
+          {(lines.data ?? []).map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.code || l.name}
+            </option>
+          ))}
+        </select>
+      </FilterField>
+      <FilterField label="Shift">
+        <select className={FILTER_CTRL} value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+          <option value="">All shifts</option>
+          {(shifts.data ?? []).map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </FilterField>
+      <FilterField label="This month">
         <button
           type="button"
-          className="btn btn-secondary"
+          className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
           onClick={() => {
             setFrom(monthStartLocal());
             setTo(today());
@@ -1449,8 +1459,8 @@ export function ManpowerAnalysisPage() {
         >
           This month
         </button>
-      </div>
-    </div>
+      </FilterField>
+    </FilterBar>
   );
 
   if (!rangeValid) {
@@ -1771,17 +1781,21 @@ export function ReportsPage() {
           </>
         }
       />
-      <div className="panel mb-4 grid gap-3 p-4 md:grid-cols-4">
-        <Field label="Report Type">
-          <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
+      <FilterBar columnsClassName="sm:grid-cols-2 md:grid-cols-4">
+        <FilterField label="Report Type">
+          <select className={FILTER_CTRL} value={type} onChange={(e) => setType(e.target.value)}>
             {['daily', 'shift', 'line', 'oee', 'downtime', 'changeover', 'machine', 'supervisor'].map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
-        </Field>
-        <Field label="From"><input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
-        <Field label="To"><input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
-      </div>
+        </FilterField>
+        <FilterField label="From">
+          <input className={FILTER_CTRL} type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </FilterField>
+        <FilterField label="To">
+          <input className={FILTER_CTRL} type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        </FilterField>
+      </FilterBar>
       {report.isLoading ? <LoadingBlock /> : (
         <div className="table-wrap panel">
           <table className="data">
@@ -1880,11 +1894,23 @@ export function SettingsPage() {
   return (
     <div>
       <PageHeader title="Settings" />
-      <div className="panel mb-4 grid gap-3 p-4 md:grid-cols-3">
-        <Field label="Key"><input className="input" value={key} onChange={(e) => setKey(e.target.value)} /></Field>
-        <Field label="Value"><input className="input" value={value} onChange={(e) => setValue(e.target.value)} /></Field>
-        <div className="flex items-end"><button className="btn btn-primary w-full" onClick={() => save.mutate()}>Save</button></div>
-      </div>
+      <FilterBar columnsClassName="sm:grid-cols-2 md:grid-cols-3">
+        <FilterField label="Key">
+          <input className={FILTER_CTRL} value={key} onChange={(e) => setKey(e.target.value)} />
+        </FilterField>
+        <FilterField label="Value">
+          <input className={FILTER_CTRL} value={value} onChange={(e) => setValue(e.target.value)} />
+        </FilterField>
+        <FilterField label="Save">
+          <button
+            type="button"
+            className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
+            onClick={() => save.mutate()}
+          >
+            Save
+          </button>
+        </FilterField>
+      </FilterBar>
       <div className="table-wrap panel">
         <table className="data">
           <thead><tr><th>Key</th><th>Value</th><th>Description</th></tr></thead>

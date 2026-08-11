@@ -326,11 +326,10 @@ body {
 }
 .table-wrap.fit-cols .data th.col-time,
 .table-wrap.fit-cols .data td.col-time {
-  width: 7.5rem;
-  min-width: 7.5rem;
+  min-width: 0;
   max-width: none;
-  overflow: visible;
-  text-overflow: clip;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;

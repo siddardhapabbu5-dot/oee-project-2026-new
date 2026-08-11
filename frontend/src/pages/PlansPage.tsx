@@ -3,6 +3,7 @@ import { FileSpreadsheet, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import api, { type ApiResponse } from '../lib/api';
+import { FilterBar, FilterField, FILTER_CTRL } from '../components/FilterBar';
 import { DateWithIcon, Field, IconButton, LoadingBlock, Modal, PageHeader } from '../components/ui';
 import { useAuthStore } from '../store';
 import { formatWorkOrder } from '../lib/workOrder';
@@ -285,17 +286,17 @@ export default function PlansPage() {
         }
       />
 
-      <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-        <Field label="Production Date">
+      <FilterBar columnsClassName="sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto_minmax(12rem,1.4fr)]">
+        <FilterField label="Production Date">
           <input
-            className="input"
+            className={FILTER_CTRL}
             type="date"
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
           />
-        </Field>
-        <Field label="Shift">
-          <select className="input" value={filterShiftId} onChange={(e) => setFilterShiftId(e.target.value)}>
+        </FilterField>
+        <FilterField label="Shift">
+          <select className={FILTER_CTRL} value={filterShiftId} onChange={(e) => setFilterShiftId(e.target.value)}>
             <option value="">All shifts</option>
             {(shifts.data ?? []).map((s) => (
               <option key={s.id} value={s.id}>
@@ -303,60 +304,70 @@ export default function PlansPage() {
               </option>
             ))}
           </select>
-        </Field>
-        <button
-          className={filterDate === localToday() ? 'btn btn-primary' : 'btn btn-secondary'}
-          type="button"
-          onClick={() => setFilterDate(localToday())}
-        >
-          Today
-        </button>
-        <button
-          className={!filterDate ? 'btn btn-primary' : 'btn btn-secondary'}
-          type="button"
-          onClick={() => setFilterDate('')}
-        >
-          All Days
-        </button>
-        <div className="pb-2 text-sm" style={{ color: 'var(--muted)' }}>
-          {filterDate ? (
-            <>
-              Showing <strong style={{ color: 'var(--text)' }}>{sortedPlans.length}</strong> work order
-              {sortedPlans.length === 1 ? '' : 's'} for{' '}
-              <strong style={{ color: 'var(--text)' }}>{fmtDisplayDate(filterDate)}</strong>
-              {filterShiftId
-                ? ` · ${(shifts.data ?? []).find((s) => s.id === filterShiftId)?.name || 'shift'}`
-                : ''}
-            </>
-          ) : (
-            <>
-              Showing <strong style={{ color: 'var(--text)' }}>{sortedPlans.length}</strong> work order
-              {sortedPlans.length === 1 ? '' : 's'} (all days
-              {filterShiftId
-                ? ` · ${(shifts.data ?? []).find((s) => s.id === filterShiftId)?.name || 'shift'}`
-                : ''}
-              )
-            </>
-          )}
-        </div>
-      </div>
+        </FilterField>
+        <FilterField label="Today">
+          <button
+            type="button"
+            className={`${FILTER_CTRL} cursor-pointer px-3 font-medium ${
+              filterDate === localToday() ? 'btn btn-primary border-transparent' : ''
+            }`}
+            onClick={() => setFilterDate(localToday())}
+          >
+            Today
+          </button>
+        </FilterField>
+        <FilterField label="All Days">
+          <button
+            type="button"
+            className={`${FILTER_CTRL} cursor-pointer px-3 font-medium ${
+              !filterDate ? 'btn btn-primary border-transparent' : ''
+            }`}
+            onClick={() => setFilterDate('')}
+          >
+            All Days
+          </button>
+        </FilterField>
+        <FilterField label="Status">
+          <div className={`${FILTER_CTRL} flex items-center text-sm`} style={{ color: 'var(--muted)' }}>
+            {filterDate ? (
+              <>
+                Showing <strong className="mx-1" style={{ color: 'var(--text)' }}>{sortedPlans.length}</strong>
+                work order{sortedPlans.length === 1 ? '' : 's'} for{' '}
+                <strong className="ml-1" style={{ color: 'var(--text)' }}>{fmtDisplayDate(filterDate)}</strong>
+                {filterShiftId
+                  ? ` · ${(shifts.data ?? []).find((s) => s.id === filterShiftId)?.name || 'shift'}`
+                  : ''}
+              </>
+            ) : (
+              <>
+                Showing <strong className="mx-1" style={{ color: 'var(--text)' }}>{sortedPlans.length}</strong>
+                work order{sortedPlans.length === 1 ? '' : 's'} (all days
+                {filterShiftId
+                  ? ` · ${(shifts.data ?? []).find((s) => s.id === filterShiftId)?.name || 'shift'}`
+                  : ''}
+                )
+              </>
+            )}
+          </div>
+        </FilterField>
+      </FilterBar>
 
       <div className="table-wrap fit-cols panel">
         <table className="data entry-log">
           <colgroup>
-            <col style={{ width: '7%' }} />
+            <col style={{ width: showDateCol ? '9%' : '10%' }} />
             {showDateCol ? <col style={{ width: '8%' }} /> : null}
-            <col style={{ width: '7%' }} />
-            <col style={{ width: '7%' }} />
-            <col className="col-time" style={{ width: '7.5rem' }} />
-            <col style={{ width: '9%' }} />
             <col style={{ width: '8%' }} />
-            <col style={{ width: '6%' }} />
+            <col style={{ width: '8%' }} />
+            <col style={{ width: '11%' }} />
+            <col style={{ width: '12%' }} />
+            <col style={{ width: '10%' }} />
+            <col style={{ width: '8%' }} />
             <col style={{ width: '6%' }} />
             <col style={{ width: '5%' }} />
-            <col style={{ width: '4%' }} />
-            <col style={{ width: '8%' }} />
-            {canEdit ? <col style={{ width: '5.25rem' }} /> : null}
+            <col style={{ width: '5%' }} />
+            <col style={{ width: showDateCol ? '9%' : '11%' }} />
+            {canEdit ? <col style={{ width: '5.5%' }} /> : null}
           </colgroup>
           <thead>
             <tr>
@@ -383,7 +394,7 @@ export default function PlansPage() {
                 <td
                   colSpan={(showDateCol ? 1 : 0) + 11 + (canEdit ? 1 : 0)}
                   className="py-8 text-center"
-                  style={{ color: 'var(--muted)' }}
+                  style={{ color: 'var(--muted)', whiteSpace: 'normal', overflow: 'visible' }}
                 >
                   {filterDate ? `No work orders for ${fmtDisplayDate(filterDate)}` : 'No work orders found'}
                 </td>

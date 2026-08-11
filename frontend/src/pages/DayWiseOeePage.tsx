@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CalendarDays, FileSpreadsheet } from 'lucide-react';
 import api, { type ApiResponse } from '../lib/api';
-import { Field, LoadingBlock, PageHeader } from '../components/ui';
+import { FilterBar, FilterField, FILTER_CTRL } from '../components/FilterBar';
+import { LoadingBlock, PageHeader } from '../components/ui';
 import { downtimeColor, metricColor } from '../lib/metricBands';
 
 type DayWiseRow = {
@@ -150,11 +151,11 @@ export default function DayWiseOeePage() {
         }
       />
 
-      <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-        <Field label="From">
+      <FilterBar columnsClassName="sm:grid-cols-2 lg:grid-cols-3">
+        <FilterField label="From">
           <input
             type="date"
-            className="input"
+            className={FILTER_CTRL}
             value={from}
             max={to || today()}
             onChange={(e) => {
@@ -163,11 +164,11 @@ export default function DayWiseOeePage() {
               if (to && v > to) setTo(v);
             }}
           />
-        </Field>
-        <Field label="To">
+        </FilterField>
+        <FilterField label="To">
           <input
             type="date"
-            className="input"
+            className={FILTER_CTRL}
             value={to}
             min={from}
             max={today()}
@@ -177,9 +178,9 @@ export default function DayWiseOeePage() {
               if (from && v < from) setFrom(v);
             }}
           />
-        </Field>
-        <Field label="Line">
-          <select className="input min-w-[12rem]" value={lineId} onChange={(e) => setLineId(e.target.value)}>
+        </FilterField>
+        <FilterField label="Line">
+          <select className={FILTER_CTRL} value={lineId} onChange={(e) => setLineId(e.target.value)}>
             <option value="">All lines</option>
             {(lines.data ?? []).map((l) => (
               <option key={l.id} value={l.id}>
@@ -187,8 +188,8 @@ export default function DayWiseOeePage() {
               </option>
             ))}
           </select>
-        </Field>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       {!rangeValid ? (
         <div className="panel p-8 text-center text-sm" style={{ color: 'var(--muted)' }}>

@@ -119,6 +119,7 @@ async function loadDashboardCore(user?: AuthUser, from?: string, to?: string, sh
     const machName = new Map(machines.map((m) => [m.id, m.name]));
 
     const downtimeByCategoryMap = new Map<string, number>();
+    const downtimeByCategoryKey = new Map<string, string>();
     for (const row of dtByPlanCategory) {
       const mins = Number(row._sum.durationMins ?? 0);
       const a = byPlan.get(row.planId) ?? emptyAgg();
@@ -133,10 +134,11 @@ async function loadDashboardCore(user?: AuthUser, from?: string, to?: string, sh
       const name = raw.trim() || 'Other';
       const key = name.toLowerCase();
       const rounded = Math.round(mins);
-      const existing = [...downtimeByCategoryMap.entries()].find(([n]) => n.toLowerCase() === key);
-      if (existing) {
-        downtimeByCategoryMap.set(existing[0], existing[1] + rounded);
+      const existingName = downtimeByCategoryKey.get(key);
+      if (existingName) {
+        downtimeByCategoryMap.set(existingName, (downtimeByCategoryMap.get(existingName) ?? 0) + rounded);
       } else {
+        downtimeByCategoryKey.set(key, name);
         downtimeByCategoryMap.set(name, rounded);
       }
     }
@@ -373,7 +375,8 @@ function assembleDashboard(core: Awaited<ReturnType<typeof loadDashboardCore>>) 
     downtimeByMachine,
     productContribution: [...productMap.entries()]
       .map(([name, actual]) => ({ name, actual }))
-      .sort((a, b) => b.actual - a.actual),
+      .sort((a, b) => b.actual - a.actual)
+      .slice(0, 10),
     capacityUtilization: [...capacityDay.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, v]) => ({

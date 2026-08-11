@@ -13,7 +13,8 @@ import {
 import { CalendarRange } from 'lucide-react';
 import api, { type ApiResponse } from '../lib/api';
 import { ChartValueLabels } from '../components/chartLabels';
-import { ChartCard, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
+import { FilterBar, FilterField, FILTER_CTRL } from '../components/FilterBar';
+import { ChartCard, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 import { downtimeColor, downtimeTone, metricColor, metricTone } from '../lib/metricBands';
 
 type WeekRow = {
@@ -155,21 +156,21 @@ export default function WeekWiseOeePage() {
         }
       />
 
-      <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-        <Field label="Month">
+      <FilterBar columnsClassName="sm:grid-cols-2 lg:grid-cols-3">
+        <FilterField label="Month">
           <input
             type="month"
-            className="input"
+            className={FILTER_CTRL}
             value={month}
             onChange={(e) => {
               setMonth(e.target.value);
               setWeekFilter('');
             }}
           />
-        </Field>
-        <Field label="Week">
+        </FilterField>
+        <FilterField label="Week">
           <select
-            className="input min-w-[12rem]"
+            className={FILTER_CTRL}
             value={weekFilter}
             onChange={(e) => setWeekFilter(e.target.value)}
           >
@@ -179,9 +180,9 @@ export default function WeekWiseOeePage() {
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Line">
-          <select className="input min-w-[12rem]" value={lineId} onChange={(e) => setLineId(e.target.value)}>
+        </FilterField>
+        <FilterField label="Line">
+          <select className={FILTER_CTRL} value={lineId} onChange={(e) => setLineId(e.target.value)}>
             <option value="">All lines</option>
             {(lines.data ?? []).map((l) => (
               <option key={l.id} value={l.id}>
@@ -189,8 +190,8 @@ export default function WeekWiseOeePage() {
               </option>
             ))}
           </select>
-        </Field>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       {report.isLoading ? (
         <LoadingBlock />

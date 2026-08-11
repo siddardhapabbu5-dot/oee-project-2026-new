@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, Clock3, CircleDashed } from 'lucide-react';
 import api, { type ApiResponse } from '../lib/api';
-import { Badge, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
+import { FilterBar, FilterField, FILTER_CTRL } from '../components/FilterBar';
+import { Badge, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 import { formatWorkOrder } from '../lib/workOrder';
 
 type StatusFilter = 'ALL' | 'PENDING' | 'PARTIAL' | 'COMPLETED';
@@ -109,39 +110,44 @@ export default function WastageStatusPage() {
         }
       />
 
-      <div className="panel mb-4 p-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Field label="From Date">
-            <input className="input w-full" type="date" value={from} max={today()} onChange={(e) => setFrom(e.target.value)} />
-          </Field>
-          <Field label="To Date">
-            <input className="input w-full" type="date" value={to} max={today()} onChange={(e) => setTo(e.target.value)} />
-          </Field>
-          <Field label="Shift">
-            <select className="input w-full" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
-              <option value="">All shifts</option>
-              {(shifts.data ?? []).map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Wastage Status">
-            <select className="input w-full" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
-              <option value="ALL">All</option>
-              <option value="PENDING">Pending</option>
-              <option value="PARTIAL">Partial</option>
-              <option value="COMPLETED">Completed</option>
-            </select>
-          </Field>
-          <div className="flex items-end gap-2">
-            <button type="button" className="btn btn-secondary" onClick={() => { setFrom(monthStart()); setTo(today()); }}>
-              This month
-            </button>
-          </div>
-        </div>
-      </div>
+      <FilterBar columnsClassName="sm:grid-cols-2 lg:grid-cols-5">
+        <FilterField label="From Date">
+          <input className={FILTER_CTRL} type="date" value={from} max={today()} onChange={(e) => setFrom(e.target.value)} />
+        </FilterField>
+        <FilterField label="To Date">
+          <input className={FILTER_CTRL} type="date" value={to} max={today()} onChange={(e) => setTo(e.target.value)} />
+        </FilterField>
+        <FilterField label="Shift">
+          <select className={FILTER_CTRL} value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+            <option value="">All shifts</option>
+            {(shifts.data ?? []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="Wastage Status">
+          <select className={FILTER_CTRL} value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
+            <option value="ALL">All</option>
+            <option value="PENDING">Pending</option>
+            <option value="PARTIAL">Partial</option>
+            <option value="COMPLETED">Completed</option>
+          </select>
+        </FilterField>
+        <FilterField label="This month">
+          <button
+            type="button"
+            className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
+            onClick={() => {
+              setFrom(monthStart());
+              setTo(today());
+            }}
+          >
+            This month
+          </button>
+        </FilterField>
+      </FilterBar>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Total Work Orders" value={String(counts?.all ?? 0)} icon={CircleDashed} />

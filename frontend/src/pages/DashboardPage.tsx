@@ -67,11 +67,56 @@ type Charts = {
   dailyTrend: Array<{ date: string; actual: number; good: number }>;
   shiftPerformance: Array<{ shift: string; planned: number; actual: number }>;
   linePerformance: Array<{ line: string; planned: number; actual: number }>;
-  oeeTrend: Array<{ date: string; oee: number }>;
+  oeeTrend: Array<{ date: string; oee: number; availability?: number; performance?: number; quality?: number }>;
   downtimeByCategory: Array<{ name: string; minutes: number }>;
   productContribution: Array<{ name: string; actual: number }>;
   capacityUtilization: Array<{ date: string; utilization: number }>;
 };
+
+/** Calendar week-of-month: 1–7 → 1, 8–14 → 2, 15–21 → 3, 22–end → 4 */
+function weekOfMonth(dateYmd: string): 1 | 2 | 3 | 4 {
+  const day = Number(dateYmd.slice(0, 10).slice(8, 10));
+  if (day <= 7) return 1;
+  if (day <= 14) return 2;
+  if (day <= 21) return 3;
+  return 4;
+}
+
+/** Roll daily OEE into Week-01…Week-04 (avoids a second /dashboard/week-wise fetch). */
+function buildWeeklyOeeFromTrend(
+  rows: Array<{ date: string; oee: number; availability?: number; performance?: number; quality?: number }>,
+) {
+  type Bucket = { n: number; oee: number; a: number; p: number; q: number };
+  const buckets = new Map<1 | 2 | 3 | 4, Bucket>();
+  for (const r of rows) {
+    const date = r.date?.slice(0, 10);
+    if (!date) continue;
+    const oee = Number(r.oee) || 0;
+    const a = Number(r.availability) || 0;
+    const p = Number(r.performance) || 0;
+    const q = Number(r.quality) || 0;
+    if (oee <= 0 && a <= 0 && p <= 0 && q <= 0) continue;
+    const w = weekOfMonth(date);
+    const b = buckets.get(w) ?? { n: 0, oee: 0, a: 0, p: 0, q: 0 };
+    b.n += 1;
+    b.oee += oee;
+    b.a += a;
+    b.p += p;
+    b.q += q;
+    buckets.set(w, b);
+  }
+  return ([1, 2, 3, 4] as const).map((w) => {
+    const b = buckets.get(w);
+    const n = b?.n || 0;
+    return {
+      week: `Week-${String(w).padStart(2, '0')}`,
+      oee: n ? Number((b!.oee / n).toFixed(2)) : 0,
+      availability: n ? Number((b!.a / n).toFixed(2)) : 0,
+      performance: n ? Number((b!.p / n).toFixed(2)) : 0,
+      quality: n ? Number((b!.q / n).toFixed(2)) : 0,
+    };
+  });
+}
 
 const PIE_FALLBACK = [
   'var(--cat-mechanical)',
@@ -124,6 +169,20 @@ function localYmd(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+/** Mon–Sat count in [from, to] (Sunday weekly off). */
+function countWorkingDays(from: string, to: string) {
+  if (!from || !to || from > to) return 0;
+  let n = 0;
+  const cur = new Date(`${from.slice(0, 10)}T12:00:00`);
+  const end = new Date(`${to.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(cur.getTime()) || Number.isNaN(end.getTime())) return 0;
+  while (cur <= end) {
+    if (cur.getDay() !== 0) n += 1;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return n;
+}
+
 type ShiftOpt = { id: string; name: string };
 
 /** Shared control height so date / select / clear sit on one baseline */
@@ -138,6 +197,8 @@ function DashboardFilterBar({
   onTo,
   onShift,
   onClear,
+  workingDays,
+  productionDays,
   trailing,
 }: {
   from: string;
@@ -148,11 +209,13 @@ function DashboardFilterBar({
   onTo: (v: string) => void;
   onShift: (v: string) => void;
   onClear: () => void;
+  workingDays?: number;
+  productionDays?: number | null;
   trailing?: ReactNode;
 }) {
   return (
     <div className="panel mb-4 p-4">
-      <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-[1fr_1fr_1fr_auto_auto]">
+      <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-[1fr_1fr_1fr_auto_auto_minmax(0,1.2fr)]">
         <Field label="From Date" className="mb-0">
           <input
             className={FILTER_CONTROL}
@@ -189,6 +252,19 @@ function DashboardFilterBar({
             ))}
           </select>
         </Field>
+        <Field label="Working Days" className="mb-0 min-w-[7.5rem]">
+          <div
+            className={`${FILTER_CONTROL} flex items-center gap-1 tabular-nums`}
+            title="Mon–Sat in selected range (Sunday weekly off)"
+          >
+            <span className="font-semibold" style={{ color: 'var(--text)' }}>
+              {workingDays ?? countWorkingDays(from, to)}
+            </span>
+            <span className="text-xs" style={{ color: 'var(--muted)' }}>
+              days
+            </span>
+          </div>
+        </Field>
         <Field label="Clear" className="mb-0 w-10">
           <button
             type="button"
@@ -200,14 +276,20 @@ function DashboardFilterBar({
             <FilterX size={18} strokeWidth={1.75} />
           </button>
         </Field>
-        {trailing ? (
-          <div className="flex flex-col">
-            <span className="mb-1.5 block text-sm font-medium opacity-0 select-none" aria-hidden>
-              ·
-            </span>
-            <div className="flex h-10 items-center">{trailing}</div>
+        <div className="col-span-2 flex flex-col sm:col-span-1">
+          <span className="mb-1.5 block text-sm font-medium opacity-0 select-none" aria-hidden>
+            ·
+          </span>
+          <div className="flex min-h-10 flex-wrap items-center gap-x-2 text-sm" style={{ color: 'var(--muted)' }}>
+            {productionDays != null ? (
+              <span title="Days with planned or actual production">
+                Prod. days:{' '}
+                <strong style={{ color: 'var(--text)' }}>{productionDays}</strong>
+              </span>
+            ) : null}
+            {trailing}
           </div>
-        ) : null}
+        </div>
       </div>
     </div>
   );
@@ -256,7 +338,7 @@ export default function DashboardPage() {
   };
 
   const shifts = useQuery({
-    queryKey: ['shifts-dashboard'],
+    queryKey: ['shifts'],
     queryFn: async () =>
       (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/shifts')).data.data,
     staleTime: 300_000,
@@ -275,22 +357,6 @@ export default function DashboardPage() {
     placeholderData: keepPreviousData,
   });
 
-  const weekMonth = to.slice(0, 7);
-  const weekWise = useQuery({
-    queryKey: ['dashboard-week-wise', weekMonth],
-    enabled: rangeValid && Boolean(weekMonth),
-    queryFn: async () =>
-      (
-        await api.get<
-          ApiResponse<{
-            charts: { oeeByWeek: Array<{ week: string; oee: number; availability: number; performance: number; quality: number }> };
-          }>
-        >('/dashboard/week-wise', { params: { month: weekMonth } })
-      ).data.data,
-    staleTime: 120_000,
-    placeholderData: keepPreviousData,
-  });
-
   const chartData = useMemo(() => {
     const c = summary.data?.charts;
     if (!c) {
@@ -298,6 +364,7 @@ export default function DashboardPage() {
         planVsActual: [] as Charts['planVsActual'],
         dailyTrend: [] as Charts['dailyTrend'],
         oeeTrend: [] as Charts['oeeTrend'],
+        oeeByWeek: [] as ReturnType<typeof buildWeeklyOeeFromTrend>,
         capacityUtilization: [] as Charts['capacityUtilization'],
         shiftPerformance: [] as Charts['shiftPerformance'],
         linePerformance: [] as Charts['linePerformance'],
@@ -305,10 +372,18 @@ export default function DashboardPage() {
         productContribution: [] as Charts['productContribution'],
       };
     }
+    const oeeRaw = c.oeeTrend ?? [];
     return {
       planVsActual: (c.planVsActual ?? []).filter((r) => (r.planned || 0) > 0 || (r.actual || 0) > 0),
       dailyTrend: fillDays(from, to, c.dailyTrend, (date) => ({ date, actual: 0, good: 0 })),
-      oeeTrend: fillDays(from, to, c.oeeTrend, (date) => ({ date, oee: 0 })),
+      oeeTrend: fillDays(from, to, oeeRaw, (date) => ({
+        date,
+        oee: 0,
+        availability: 0,
+        performance: 0,
+        quality: 0,
+      })),
+      oeeByWeek: buildWeeklyOeeFromTrend(oeeRaw),
       capacityUtilization: fillDays(from, to, c.capacityUtilization, (date) => ({
         date,
         utilization: 0,
@@ -316,9 +391,21 @@ export default function DashboardPage() {
       shiftPerformance: c.shiftPerformance,
       linePerformance: c.linePerformance,
       downtimeByCategory: consolidatePieRows(c.downtimeByCategory ?? []),
-      productContribution: c.productContribution,
+      productContribution: (c.productContribution ?? []).slice(0, 10),
     };
   }, [summary.data?.charts, from, to]);
+
+  const showDenseLabels = (chartData.oeeTrend?.length ?? 0) <= 16;
+
+  const workingDays = useMemo(() => countWorkingDays(from, to), [from, to]);
+  const productionDays = useMemo(() => {
+    const rows = summary.data?.charts?.planVsActual ?? summary.data?.charts?.dailyTrend ?? [];
+    return rows.filter((r) => {
+      const planned = 'planned' in r ? Number((r as { planned?: number }).planned) || 0 : 0;
+      const actual = Number((r as { actual?: number }).actual) || 0;
+      return planned > 0 || actual > 0;
+    }).length;
+  }, [summary.data?.charts]);
 
   if (!rangeValid) {
     return (
@@ -336,6 +423,7 @@ export default function DashboardPage() {
           onTo={setTo}
           onShift={setShiftId}
           onClear={clearFilters}
+          workingDays={workingDays}
         />
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
           From date must be on or before To date.
@@ -361,6 +449,7 @@ export default function DashboardPage() {
           onTo={setTo}
           onShift={setShiftId}
           onClear={clearFilters}
+          workingDays={workingDays}
           trailing={
             <button className="btn btn-secondary" type="button" onClick={() => void summary.refetch()}>
               Retry
@@ -393,10 +482,12 @@ export default function DashboardPage() {
         onTo={setTo}
         onShift={setShiftId}
         onClear={clearFilters}
+        workingDays={workingDays}
+        productionDays={productionDays}
         trailing={
           summary.isFetching ? (
             <span className="text-xs" style={{ color: 'var(--muted)' }}>
-              Updating…
+              · Updating…
             </span>
           ) : null
         }
@@ -570,10 +661,10 @@ export default function DashboardPage() {
               <Tooltip labelFormatter={(v) => fmtAxisDate(String(v))} />
               <Legend wrapperStyle={{ color: '#334155' }} />
               <Line type="monotone" dataKey="actual" name="Actual" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }}>
-                <ChartValueLabels />
+                {showDenseLabels ? <ChartValueLabels /> : null}
               </Line>
               <Line type="monotone" dataKey="good" name="Good" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }}>
-                <ChartValueLabels />
+                {showDenseLabels ? <ChartValueLabels /> : null}
               </Line>
             </LineChart>
           </ResponsiveContainer>
@@ -620,14 +711,14 @@ export default function DashboardPage() {
               <YAxis tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, 100]} />
               <Tooltip labelFormatter={(v) => fmtAxisDate(String(v))} formatter={(v) => [`${v}%`, 'OEE']} />
               <Line type="monotone" dataKey="oee" name="OEE %" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }}>
-                <ChartValueLabels suffix="%" />
+                {showDenseLabels ? <ChartValueLabels suffix="%" /> : null}
               </Line>
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
-        <ChartCard title={`Weekly OEE Trend (${weekMonth})`}>
+        <ChartCard title="Weekly OEE Trend">
           <ResponsiveContainer>
-            <BarChart data={weekWise.data?.charts.oeeByWeek ?? []} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
+            <BarChart data={c.oeeByWeek} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#64748b' }} />
               <YAxis tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, 100]} />
@@ -750,7 +841,7 @@ export default function DashboardPage() {
                 activeDot={{ r: 5 }}
                 connectNulls
               >
-                <ChartValueLabels suffix="%" />
+                {showDenseLabels ? <ChartValueLabels suffix="%" /> : null}
               </Line>
             </LineChart>
           </ResponsiveContainer>

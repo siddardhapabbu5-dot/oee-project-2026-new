@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
+import { FilterBar, FilterField, FILTER_CTRL } from '../../components/FilterBar';
 import { getPillar, matchesQuery } from '../../lib/oeeGuidanceData';
 import { lossCategoryColor } from '../../lib/metricBands';
 
@@ -39,23 +40,23 @@ export default function OeePillarPage() {
 
   return (
     <div>
-      <div className="panel mb-4 flex flex-wrap items-end gap-3 p-4">
-        <label className="min-w-[220px] flex-1 text-sm">
-          <span className="mb-1.5 block font-medium" style={{ color: 'var(--muted)' }}>
-            Search categories / reasons
-          </span>
+      <FilterBar columnsClassName="sm:grid-cols-[minmax(14rem,1fr)_auto]">
+        <FilterField label="Search categories / reasons">
           <input
-            className="input"
+            className={FILTER_CTRL}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="e.g. cap, PLC, speed, TDS…"
           />
-        </label>
-        <div className="pb-2 text-sm" style={{ color: 'var(--muted)' }}>
-          Showing <strong style={{ color: 'var(--text)' }}>{filtered.groups.length}</strong> categories ·{' '}
-          <strong style={{ color: 'var(--text)' }}>{filtered.reasonCount}</strong> reasons
-        </div>
-      </div>
+        </FilterField>
+        <FilterField label="Results">
+          <div className={`${FILTER_CTRL} flex items-center text-sm`} style={{ color: 'var(--muted)' }}>
+            Showing <strong className="mx-1" style={{ color: 'var(--text)' }}>{filtered.groups.length}</strong>{' '}
+            categories · <strong className="mx-1" style={{ color: 'var(--text)' }}>{filtered.reasonCount}</strong>{' '}
+            reasons
+          </div>
+        </FilterField>
+      </FilterBar>
 
       <div className="panel mb-5 p-5">
         <div className="flex flex-wrap items-start gap-3">

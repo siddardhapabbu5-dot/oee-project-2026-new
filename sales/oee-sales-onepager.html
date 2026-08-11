@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LineSight OEE — Sales One-Pager</title>
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 210mm;
+      height: 297mm;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: #1a2332;
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      width: 210mm;
+      height: 297mm;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .hero {
+      background: #0f2d3a;
+      color: #f4f7f8;
+      padding: 18mm 16mm 14mm;
+      position: relative;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: 0; top: 0; bottom: 0;
+      width: 38%;
+      background:
+        linear-gradient(135deg, transparent 0%, rgba(46, 139, 122, 0.35) 100%),
+        repeating-linear-gradient(
+          -18deg,
+          transparent,
+          transparent 12px,
+          rgba(255,255,255,0.03) 12px,
+          rgba(255,255,255,0.03) 13px
+        );
+    }
+    .brand {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #7ec8b8;
+      font-weight: 600;
+      margin-bottom: 8px;
+      position: relative;
+      z-index: 1;
+    }
+    .hero h1 {
+      font-size: 28px;
+      line-height: 1.15;
+      font-weight: 700;
+      max-width: 62%;
+      position: relative;
+      z-index: 1;
+    }
+    .hero .sub {
+      margin-top: 10px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #c5d4db;
+      max-width: 60%;
+      position: relative;
+      z-index: 1;
+    }
+    .pill-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 1;
+    }
+    .pill {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 5px 10px;
+      border: 1px solid rgba(126, 200, 184, 0.45);
+      color: #7ec8b8;
+      border-radius: 2px;
+    }
+    .body {
+      flex: 1;
+      padding: 11mm 16mm 8mm;
+      display: flex;
+      flex-direction: column;
+      gap: 9mm;
+    }
+    h2 {
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #2e8b7a;
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+    .problem {
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: #334155;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .mod {
+      border: 1px solid #d8e0e6;
+      border-top: 3px solid #2e8b7a;
+      padding: 10px 11px;
+      min-height: 78px;
+    }
+    .mod h3 {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #0f2d3a;
+    }
+    .mod p {
+      font-size: 10.5px;
+      line-height: 1.4;
+      color: #475569;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 12px;
+    }
+    ul.checks {
+      list-style: none;
+      display: grid;
+      gap: 5px;
+    }
+    ul.checks li {
+      font-size: 11.5px;
+      line-height: 1.35;
+      color: #334155;
+      padding-left: 16px;
+      position: relative;
+    }
+    ul.checks li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 5px;
+      width: 8px;
+      height: 8px;
+      background: #2e8b7a;
+    }
+    .price-box {
+      background: #f0f6f5;
+      border: 1px solid #c5ddd7;
+      padding: 10px 12px;
+    }
+    .price-box h3 {
+      font-size: 12px;
+      color: #0f2d3a;
+      margin-bottom: 8px;
+    }
+    .price-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      padding: 4px 0;
+      border-bottom: 1px solid #d5e5e1;
+      color: #334155;
+    }
+    .price-row:last-child { border-bottom: 0; }
+    .price-row strong { color: #0f2d3a; }
+    .note {
+      margin-top: 7px;
+      font-size: 9.5px;
+      color: #64748b;
+      line-height: 1.35;
+    }
+    .cta {
+      background: #0f2d3a;
+      color: #f4f7f8;
+      padding: 10mm 16mm;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .cta h2 {
+      color: #7ec8b8;
+      margin-bottom: 4px;
+    }
+    .cta p {
+      font-size: 12px;
+      line-height: 1.4;
+      color: #c5d4db;
+      max-width: 360px;
+    }
+    .cta-side {
+      text-align: right;
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: #e8eef1;
+      white-space: nowrap;
+    }
+    .cta-side .label {
+      color: #7ec8b8;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="brand">1BY0 Solutions · LineSight OEE</div>
+      <h1>Plant OEE software that supervisors actually use every shift</h1>
+      <p class="sub">
+        Capture production, downtime, changeover and wastage on the shop floor —
+        then see live OEE, line-wise performance and plan vs actual without SAP complexity.
+      </p>
+      <div class="pill-row">
+        <span class="pill">Availability</span>
+        <span class="pill">Performance</span>
+        <span class="pill">Quality</span>
+        <span class="pill">MES-ready</span>
+      </div>
+    </header>
+
+    <main class="body">
+      <section>
+        <h2>The problem</h2>
+        <p class="problem">
+          Most plants know production happened. Few know <strong>where OEE was lost</strong> —
+          by hour, line, SKU, or shift. Excel sheets arrive late; ERP does not live on the floor.
+        </p>
+      </section>
+
+      <section>
+        <h2>What you get</h2>
+        <div class="grid-3">
+          <div class="mod">
+            <h3>Shop floor</h3>
+            <p>Work orders, hourly production entries, downtime, changeover, wastage &amp; approvals.</p>
+          </div>
+          <div class="mod">
+            <h3>OEE dashboards</h3>
+            <p>Plant, line-wise, day-wise &amp; week-wise OEE with A × P × Q breakdown.</p>
+          </div>
+          <div class="mod">
+            <h3>Loss analytics</h3>
+            <p>Downtime Pareto, changeover analysis, manpower, wastage reports, plan vs actual.</p>
+          </div>
+          <div class="mod">
+            <h3>Sales view</h3>
+            <p>Cases, revenue, brand &amp; channel performance — same date filters as the plant.</p>
+          </div>
+          <div class="mod">
+            <h3>Master data</h3>
+            <p>Plants, lines, machines, shifts, brands, products &amp; SKUs, production targets.</p>
+          </div>
+          <div class="mod">
+            <h3>Built for roles</h3>
+            <p>Supervisor enters · Manager approves · Owner sees KPIs — with audit trail.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="two">
+        <div>
+          <h2>Best fit</h2>
+          <ul class="checks">
+            <li>Beverage, dairy, food, packaging &amp; similar shift plants</li>
+            <li>1–5 lines to start (expand plant-wide later)</li>
+            <li>Today on Excel / paper shift reports</li>
+            <li>Need clarity on downtime, changeover &amp; scrap</li>
+            <li>Want results in weeks — not a 9-month MES project</li>
+          </ul>
+        </div>
+        <div class="price-box">
+          <h3>Indicative India pricing</h3>
+          <div class="price-row"><span>Starter (up to 2 lines)</span><strong>₹25–45k / mo</strong></div>
+          <div class="price-row"><span>Plant (full modules)</span><strong>₹60k–1.2L / mo</strong></div>
+          <div class="price-row"><span>Sales dashboard add-on</span><strong>+ ₹15–30k / mo</strong></div>
+          <div class="price-row"><span>Implementation &amp; training</span><strong>₹75k–2.5L</strong></div>
+          <p class="note">Annual prepaid preferred. 30-day paid pilot on one line available. Final quote by plant size &amp; scope.</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>How we start</h2>
+        <p class="problem">
+          <strong>Week 1:</strong> master data + one line live &nbsp;·&nbsp;
+          <strong>Week 2–4:</strong> daily shift entry habit &nbsp;·&nbsp;
+          <strong>Day 30:</strong> review OEE &amp; losses — convert to annual if the floor is using it.
+        </p>
+      </section>
+    </main>
+
+    <footer class="cta">
+      <div>
+        <h2>Book a 12-minute plant demo</h2>
+        <p>Bring one week of shift numbers — we show your OEE story on screen the same day.</p>
+      </div>
+      <div class="cta-side">
+        <div class="label">Contact</div>
+        <div>Siddardha Pabbu</div>
+        <div>1BY0 Solutions</div>
+        <div>+91 72043 01779</div>
+        <div>+91 92916 26436</div>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>
