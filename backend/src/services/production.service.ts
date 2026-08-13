@@ -77,8 +77,10 @@ export async function listPlans(
     ...(params.from || params.to
       ? {
           productionDate: {
-            ...(params.from ? { gte: new Date(`${params.from.slice(0, 10)}T00:00:00.000Z`) } : {}),
-            ...(params.to ? { lte: new Date(`${params.to.slice(0, 10)}T23:59:59.999Z`) } : {}),
+            ...(params.from ? { gte: parseCalendarDate(params.from) } : {}),
+            ...(params.to
+              ? { lte: new Date(`${toCalendarDate(params.to)}T23:59:59.999Z`) }
+              : {}),
           },
         }
       : {}),
@@ -305,29 +307,35 @@ function hourlyLossDowntime(plannedCases: number, actualCases: number, lossCases
 export async function exportProductionEntriesReportExcel(
   params: {
     mode: 'day' | 'shift';
-    date: string;
+    date?: string;
+    from?: string;
+    to?: string;
     shiftId?: string;
     lineId?: string;
   },
   user?: AuthUser,
 ) {
-  const day = String(params.date || '').slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new ValidationError('Valid date is required (YYYY-MM-DD)');
+  const fromDay = String(params.from || params.date || '').slice(0, 10);
+  const toDay = String(params.to || params.from || params.date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDay) || !/^\d{4}-\d{2}-\d{2}$/.test(toDay)) {
+    throw new ValidationError('Valid From/To dates are required (YYYY-MM-DD)');
+  }
+  if (fromDay > toDay) throw new ValidationError('From date must be on or before To date');
   if (params.mode === 'shift' && !params.shiftId) throw new ValidationError('Shift is required for shift-wise report');
 
-  const dayStart = new Date(`${day}T00:00:00.000Z`);
-  const dayEnd = new Date(`${day}T23:59:59.999Z`);
+  const rangeStart = new Date(`${fromDay}T00:00:00.000Z`);
+  const rangeEnd = new Date(`${toDay}T23:59:59.999Z`);
 
   const plans = await prisma.productionPlan.findMany({
     where: {
       deletedAt: null,
       ...scopePlans(user),
-      productionDate: { gte: dayStart, lte: dayEnd },
+      productionDate: { gte: rangeStart, lte: rangeEnd },
       ...(params.shiftId ? { shiftId: params.shiftId } : {}),
       ...(params.lineId ? { lineId: params.lineId } : {}),
     },
     include: planInclude,
-    orderBy: [{ line: { code: 'asc' } }, { shift: { name: 'asc' } }, { planNumber: 'asc' }],
+    orderBy: [{ productionDate: 'asc' }, { line: { code: 'asc' } }, { shift: { name: 'asc' } }, { planNumber: 'asc' }],
   });
 
   const workbook = new ExcelJS.Workbook();
@@ -342,7 +350,8 @@ export async function exportProductionEntriesReportExcel(
   ];
   summary.getRow(1).font = { bold: true };
   summary.addRow({ field: 'Report Type', value: params.mode === 'shift' ? 'Shift-wise' : 'Day-wise' });
-  summary.addRow({ field: 'Date', value: day });
+  summary.addRow({ field: 'From Date', value: fromDay });
+  summary.addRow({ field: 'To Date', value: toDay });
   if (params.mode === 'shift') {
     const shiftName = plans[0]?.shift?.name || params.shiftId || '';
     summary.addRow({ field: 'Shift', value: shiftName });
@@ -466,9 +475,10 @@ export async function exportProductionEntriesReportExcel(
 
   const buffer = await workbook.xlsx.writeBuffer();
   const shiftPart = params.mode === 'shift' ? `-shift` : '-day';
+  const fileRange = fromDay === toDay ? fromDay : `${fromDay}_to_${toDay}`;
   return {
     buffer: Buffer.from(buffer),
-    filename: `production-entries${shiftPart}-${day}.xlsx`,
+    filename: `production-entries${shiftPart}-${fileRange}.xlsx`,
   };
 }
 

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -238,6 +238,13 @@ function calcHourlyOee(input: {
   };
 }
 
+function localYmd(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export default function ProductionEntriesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPlanId = searchParams.get('planId') || '';
@@ -246,15 +253,18 @@ export default function ProductionEntriesPage() {
   const [dtForm, setDtForm] = useState<Record<string, string>>({});
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingDowntimeId, setEditingDowntimeId] = useState<string | null>(null);
-  const [reportDate, setReportDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exportFrom, setExportFrom] = useState(() => localYmd());
+  const [exportTo, setExportTo] = useState(() => localYmd());
   const [reportShiftId, setReportShiftId] = useState('');
+  const [exportMode, setExportMode] = useState<'plan' | 'day' | 'shift'>('plan');
   const [downloading, setDownloading] = useState<'day' | 'shift' | 'plan' | null>(null);
   const qc = useQueryClient();
   const didInitDateFromPlan = useRef(false);
+  const exportRangeValid = Boolean(exportFrom && exportTo && exportFrom <= exportTo);
 
   const plans = useQuery({
-    queryKey: ['plans-entries', reportDate, reportShiftId],
-    enabled: Boolean(reportDate),
+    queryKey: ['plans-entries', exportFrom, exportTo, reportShiftId],
+    enabled: exportRangeValid,
     queryFn: async () =>
       (
         await api.get<
@@ -270,12 +280,16 @@ export default function ProductionEntriesPage() {
         >('/plans', {
           params: {
             limit: 100,
-            from: reportDate,
-            to: reportDate,
+            from: exportFrom,
+            to: exportTo,
             ...(reportShiftId ? { shiftId: reportShiftId } : {}),
           },
         })
       ).data.data,
+    retry: 2,
+    retryDelay: (n) => Math.min(1000 * 2 ** n, 4000),
+    refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
   });
 
   useEffect(() => {
@@ -284,22 +298,32 @@ export default function ProductionEntriesPage() {
 
   const plan = useQuery({
     queryKey: ['plan', planId],
-    enabled: !!planId,
+    enabled: Boolean(planId) && !plans.isError,
     queryFn: async () => (await api.get<ApiResponse<PlanDetail>>(`/plans/${planId}`)).data.data,
+    retry: 2,
+    retryDelay: (n) => Math.min(1000 * 2 ** n, 4000),
+    refetchOnReconnect: true,
   });
 
-  // If opened with ?planId=, align Report Date + Shift to that work order once
+  // If opened with ?planId=, align dates + shift to that work order once
   useEffect(() => {
     if (didInitDateFromPlan.current) return;
     if (!initialPlanId || !plan.data?.productionDate || plan.data.id !== initialPlanId) return;
     didInitDateFromPlan.current = true;
-    setReportDate(String(plan.data.productionDate).slice(0, 10));
+    const day = String(plan.data.productionDate).slice(0, 10);
+    setExportFrom(day);
+    setExportTo(day);
     if (plan.data.shift?.id) setReportShiftId(plan.data.shift.id);
   }, [initialPlanId, plan.data?.id, plan.data?.productionDate, plan.data?.shift?.id]);
 
-  // Keep selected work order within the filtered date/shift list
+  // Keep selected work order within the filtered list; clear when list fails or is empty
   useEffect(() => {
-    if (plans.isLoading || !plans.data) return;
+    if (plans.isLoading) return;
+    if (plans.isError) {
+      // Stop hammering /plans/:id while list is down
+      return;
+    }
+    if (!plans.data) return;
     if (planId && plans.data.some((x) => x.id === planId)) return;
     // Wait for deep-link date sync before replacing selection
     if (initialPlanId && planId === initialPlanId && !didInitDateFromPlan.current) return;
@@ -312,7 +336,7 @@ export default function ProductionEntriesPage() {
       setEditingEntryId(null);
       setEditingDowntimeId(null);
     }
-  }, [plans.data, plans.isLoading, planId, initialPlanId, setSearchParams]);
+  }, [plans.data, plans.isLoading, plans.isError, planId, initialPlanId, setSearchParams]);
 
   const MACHINE_ORDER = [
     'Raw Water Pump',
@@ -773,20 +797,27 @@ export default function ProductionEntriesPage() {
   }
 
   async function downloadDayReport() {
-    if (!reportDate) {
-      toast.error('Select a date for day-wise report');
+    if (!exportFrom || !exportTo) {
+      toast.error('Select From and To dates for download');
+      return;
+    }
+    if (exportFrom > exportTo) {
+      toast.error('From date must be on or before To date');
       return;
     }
     try {
       setDownloading('day');
       const res = await api.get('/production-entries/export/excel', {
         responseType: 'blob',
-        params: { mode: 'day', date: reportDate },
+        params: { mode: 'day', from: exportFrom, to: exportTo },
       });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `production-entries-day-${reportDate}.xlsx`;
+      a.download =
+        exportFrom === exportTo
+          ? `production-entries-day-${exportFrom}.xlsx`
+          : `production-entries-day-${exportFrom}_to_${exportTo}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('Day-wise report downloaded');
@@ -798,8 +829,12 @@ export default function ProductionEntriesPage() {
   }
 
   async function downloadShiftReport() {
-    if (!reportDate) {
-      toast.error('Select a date for shift-wise report');
+    if (!exportFrom || !exportTo) {
+      toast.error('Select From and To dates for download');
+      return;
+    }
+    if (exportFrom > exportTo) {
+      toast.error('From date must be on or before To date');
       return;
     }
     if (!reportShiftId) {
@@ -812,14 +847,18 @@ export default function ProductionEntriesPage() {
         responseType: 'blob',
         params: {
           mode: 'shift',
-          date: reportDate,
+          from: exportFrom,
+          to: exportTo,
           shiftId: reportShiftId,
         },
       });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `production-entries-shift-${reportDate}.xlsx`;
+      a.download =
+        exportFrom === exportTo
+          ? `production-entries-shift-${exportFrom}.xlsx`
+          : `production-entries-shift-${exportFrom}_to_${exportTo}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('Shift-wise report downloaded');
@@ -830,7 +869,21 @@ export default function ProductionEntriesPage() {
     }
   }
 
-  if (plans.isLoading) return <LoadingBlock />;
+  async function downloadSelected() {
+    if (exportMode === 'plan') {
+      if (!planId) {
+        toast.error('Select a work order first');
+        return;
+      }
+      await downloadExcel();
+      return;
+    }
+    if (exportMode === 'day') {
+      await downloadDayReport();
+      return;
+    }
+    await downloadShiftReport();
+  }
 
   const actualTotal = p?.productionEntries.reduce((s, e) => s + e.actualCases, 0) ?? 0;
   const lossTotal = p?.productionEntries.reduce((s, e) => s + e.lossCases, 0) ?? 0;
@@ -857,28 +910,62 @@ export default function ProductionEntriesPage() {
     <div>
       <PageHeader
         title="Production Entries"
-        subtitle="Hourly production & downtime entry — plan fields auto-filled"
+        subtitle="Enter hourly production and downtime for a work order"
         actions={
-          <button
-            className="btn btn-secondary"
-            type="button"
-            disabled={!planId || downloading === 'plan'}
-            onClick={() => void downloadExcel()}
-          >
-            {downloading === 'plan' ? 'Downloading...' : 'Download Plan Excel'}
-          </button>
+          <>
+            <select
+              className="input box-border h-10 min-w-[12rem] max-w-[16rem]"
+              value={exportMode}
+              onChange={(e) => setExportMode(e.target.value as 'plan' | 'day' | 'shift')}
+              aria-label="Download type"
+            >
+              <option value="plan">This work order</option>
+              <option value="day">All work orders</option>
+              <option value="shift">Selected shift</option>
+            </select>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              disabled={
+                downloading !== null ||
+                (exportMode === 'plan' && !planId) ||
+                (exportMode !== 'plan' && !exportRangeValid) ||
+                (exportMode === 'shift' && !reportShiftId)
+              }
+              onClick={() => void downloadSelected()}
+            >
+              {downloading ? 'Downloading…' : 'Download Excel'}
+            </button>
+          </>
         }
       />
 
       <div className="panel mb-4 p-4">
-        <h3 className="mb-3 font-semibold">Download Reports</h3>
-        <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <FilterField label="Report Date">
+        <div className="grid grid-cols-2 items-start gap-3 lg:grid-cols-[1fr_1fr_1fr_minmax(16rem,2.2fr)]">
+          <FilterField label="From Date">
             <input
               className={FILTER_CTRL}
               type="date"
-              value={reportDate}
-              onChange={(e) => setReportDate(e.target.value)}
+              value={exportFrom}
+              max={exportTo || undefined}
+              onChange={(e) => {
+                const v = e.target.value;
+                setExportFrom(v);
+                if (exportTo && v > exportTo) setExportTo(v);
+              }}
+            />
+          </FilterField>
+          <FilterField label="To Date">
+            <input
+              className={FILTER_CTRL}
+              type="date"
+              value={exportTo}
+              min={exportFrom || undefined}
+              onChange={(e) => {
+                const v = e.target.value;
+                setExportTo(v);
+                if (exportFrom && v < exportFrom) setExportFrom(v);
+              }}
             />
           </FilterField>
           <FilterField label="Shift">
@@ -895,90 +982,88 @@ export default function ProductionEntriesPage() {
               ))}
             </select>
           </FilterField>
-          <FilterField label="Day-wise">
-            <button
-              className={`${FILTER_CTRL} w-full cursor-pointer px-3 font-medium`}
-              type="button"
-              disabled={!reportDate || downloading === 'day'}
-              onClick={() => void downloadDayReport()}
+          <FilterField label="Work Order">
+            <select
+              className={FILTER_CTRL}
+              value={planId}
+              onChange={(e) => {
+                setPlanId(e.target.value);
+                setSearchParams(e.target.value ? { planId: e.target.value } : {});
+                setProdForm({});
+                setDtForm({});
+                setEditingEntryId(null);
+                setEditingDowntimeId(null);
+              }}
             >
-              {downloading === 'day' ? 'Downloading...' : 'Download Day-wise'}
-            </button>
-          </FilterField>
-          <FilterField label="Shift-wise">
-            <button
-              className={`${FILTER_CTRL} w-full cursor-pointer px-3 font-medium`}
-              type="button"
-              disabled={!reportDate || !reportShiftId || downloading === 'shift'}
-              onClick={() => void downloadShiftReport()}
-            >
-              {downloading === 'shift' ? 'Downloading...' : 'Download Shift-wise'}
-            </button>
+              <option value="">Select a work order...</option>
+              {(plans.data ?? []).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {formatWorkOrder(item.planNumber)} — {item.line?.code || item.line?.name} / {item.shift?.name} /{' '}
+                  {String(item.productionDate || '').slice(0, 10)}
+                </option>
+              ))}
+            </select>
           </FilterField>
         </div>
-        <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
-          Filters work orders by date and shift. Day-wise export uses the date; Shift-wise export needs a shift
-          selected. Includes hourly production and downtime sheets.
-        </p>
-      </div>
-
-      <div className="panel mb-4 p-4">
-        <Field label="Select Work Order">
-          <select
-            className="input"
-            value={planId}
-            onChange={(e) => {
-              setPlanId(e.target.value);
-              setSearchParams(e.target.value ? { planId: e.target.value } : {});
-              setProdForm({});
-              setDtForm({});
-              setEditingEntryId(null);
-              setEditingDowntimeId(null);
-            }}
-          >
-            <option value="">Select a work order...</option>
-            {(plans.data ?? []).map((item) => (
-              <option key={item.id} value={item.id}>
-                {formatWorkOrder(item.planNumber)} — {item.line?.code || item.line?.name} / {item.shift?.name} /{' '}
-                {String(item.productionDate || '').slice(0, 10)}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {plans.isError ? (
-          <p className="mt-2 text-sm text-red-600">Could not load work orders. Check that the API is running, then refresh.</p>
-        ) : null}
-        {!plans.isLoading && !plans.isError && (plans.data?.length ?? 0) === 0 ? (
-          <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-            No work orders for {reportDate || 'this date'}
-            {reportShiftId
-              ? ` · ${(shifts.data ?? []).find((s) => s.id === reportShiftId)?.name || 'selected shift'}`
-              : ''}
-            . Pick another date/shift or create a work order.
+        {!exportRangeValid ? (
+          <p className="mt-2 text-xs" style={{ color: 'var(--danger)' }}>
+            From date must be on or before To date.
           </p>
-        ) : (
+        ) : null}
+        {plans.isError ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" style={{ color: 'var(--danger)' }}>
+            <span>Could not load work orders. The API may be down or unreachable.</span>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void plans.refetch()}
+              disabled={plans.isFetching}
+            >
+              {plans.isFetching ? 'Retrying…' : 'Retry'}
+            </button>
+          </div>
+        ) : null}
+        {exportRangeValid && !plans.isLoading && !plans.isError && (plans.data?.length ?? 0) === 0 ? (
+          <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
+            No work orders in this range. Change dates/shift or create a work order.
+          </p>
+        ) : null}
+        {exportRangeValid && !plans.isError && (plans.data?.length ?? 0) > 0 ? (
           <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
-            Showing work orders for <strong style={{ color: 'var(--text)' }}>{reportDate}</strong>
-            {reportShiftId ? (
-              <>
-                {' · '}
-                <strong style={{ color: 'var(--text)' }}>
-                  {(shifts.data ?? []).find((s) => s.id === reportShiftId)?.name || 'Shift'}
-                </strong>
-              </>
-            ) : (
-              ' · all shifts'
-            )}
+            {plans.data?.length ?? 0} work order{(plans.data?.length ?? 0) === 1 ? '' : 's'}
             {plans.isFetching ? ' · updating…' : ''}
           </p>
-        )}
+        ) : null}
+        {plans.isLoading ? (
+          <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+            Loading work orders…
+          </p>
+        ) : null}
       </div>
 
-      {plans.isLoading || (planId && plan.isLoading) ? (
+      {plans.isError ? (
+        <div className="panel p-6 text-sm" style={{ color: 'var(--muted)' }}>
+          Fix the connection above, then retry. Work-order entry will appear once the list loads.
+        </div>
+      ) : plans.isLoading || (planId && plan.isLoading) ? (
         <LoadingBlock />
+      ) : !planId ? (
+        <div className="panel p-8 text-center text-sm" style={{ color: 'var(--muted)' }}>
+          Select a work order to enter hourly production and downtime.
+        </div>
       ) : plan.isError ? (
-        <div className="panel p-4 text-sm text-red-600">
-          Failed to load work order details. Select another work order or refresh the page.
+        <div className="panel p-4 text-sm" style={{ color: 'var(--danger)' }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span>Failed to load work order details.</span>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => void plan.refetch()}
+              disabled={plan.isFetching}
+            >
+              {plan.isFetching ? 'Retrying…' : 'Retry'}
+            </button>
+          </div>
         </div>
       ) : p ? (
         <>
@@ -1475,11 +1560,7 @@ export default function ProductionEntriesPage() {
             </div>
           </div>
         </>
-      ) : planId ? null : (
-        <div className="panel p-4 text-sm" style={{ color: 'var(--muted)' }}>
-          Select a work order to enter hourly production and downtime.
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }

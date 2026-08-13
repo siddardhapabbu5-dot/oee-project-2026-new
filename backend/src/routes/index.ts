@@ -322,11 +322,13 @@ router.get('/plans/export/excel', authenticate, asyncHandler(async (req, res) =>
 
 router.get('/production-entries/export/excel', authenticate, asyncHandler(async (req, res) => {
   const mode = String(req.query.mode || 'day') === 'shift' ? 'shift' : 'day';
-  const date = typeof req.query.date === 'string' ? req.query.date : '';
+  const date = typeof req.query.date === 'string' ? req.query.date : undefined;
+  const from = typeof req.query.from === 'string' ? req.query.from : undefined;
+  const to = typeof req.query.to === 'string' ? req.query.to : undefined;
   const shiftId = typeof req.query.shiftId === 'string' ? req.query.shiftId : undefined;
   const lineId = typeof req.query.lineId === 'string' ? req.query.lineId : undefined;
   const { buffer, filename } = await productionService.exportProductionEntriesReportExcel(
-    { mode, date, shiftId, lineId },
+    { mode, date, from, to, shiftId, lineId },
     req.user,
   );
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

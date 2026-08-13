@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CalendarDays, FileSpreadsheet } from 'lucide-react';
 import api, { type ApiResponse } from '../lib/api';
@@ -78,10 +78,11 @@ export default function DayWiseOeePage() {
   const rangeValid = Boolean(from && to && from <= to);
 
   const lines = useQuery({
-    queryKey: ['lines-day-wise'],
+    queryKey: ['lines'],
     queryFn: async () =>
       (await api.get<ApiResponse<Array<{ id: string; name: string; code: string }>>>('/lines', { params: { limit: 100 } })).data
         .data,
+    staleTime: 300_000,
   });
 
   const report = useQuery({
@@ -97,6 +98,8 @@ export default function DayWiseOeePage() {
           },
         })
       ).data.data,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 
   const rows = report.data?.rows ?? [];

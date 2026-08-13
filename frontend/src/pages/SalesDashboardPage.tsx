@@ -187,14 +187,16 @@ export default function SalesDashboardPage() {
   }
 
   const products = useQuery({
-    queryKey: ['products-sales'],
+    queryKey: ['products'],
+    enabled: canEdit,
     queryFn: async () =>
       (await api.get<ApiResponse<Product[]>>('/products', { params: { limit: 200 } })).data.data,
     staleTime: 300_000,
   });
 
   const skus = useQuery({
-    queryKey: ['skus-sales'],
+    queryKey: ['skus'],
+    enabled: canEdit,
     queryFn: async () =>
       (await api.get<ApiResponse<Sku[]>>('/skus', { params: { limit: 500 } })).data.data,
     staleTime: 300_000,

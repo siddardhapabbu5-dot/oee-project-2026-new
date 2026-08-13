@@ -760,10 +760,11 @@ export function DowntimeAnalysisPage() {
   const [lineId, setLineId] = useState('');
 
   const lines = useQuery({
-    queryKey: ['lines-options-dt'],
+    queryKey: ['lines'],
     queryFn: async () =>
       (await api.get<ApiResponse<Array<{ id: string; name: string; code?: string }>>>('/lines', { params: { limit: 100 } }))
         .data.data,
+    staleTime: 300_000,
   });
 
   const data = useQuery({
@@ -1084,10 +1085,11 @@ export function ChangeoverAnalysisPage() {
   const [lineId, setLineId] = useState('');
 
   const lines = useQuery({
-    queryKey: ['lines-options-co'],
+    queryKey: ['lines'],
     queryFn: async () =>
       (await api.get<ApiResponse<Array<{ id: string; name: string; code?: string }>>>('/lines', { params: { limit: 100 } }))
         .data.data,
+    staleTime: 300_000,
   });
 
   const data = useQuery({
@@ -1319,13 +1321,14 @@ export function ManpowerAnalysisPage() {
   const rangeValid = Boolean(from && to && from <= to);
 
   const lines = useQuery({
-    queryKey: ['lines-manpower'],
+    queryKey: ['lines'],
     queryFn: async () =>
       (await api.get<ApiResponse<Array<{ id: string; code: string; name: string }>>>('/lines', { params: { limit: 100 } }))
         .data.data,
+    staleTime: 300_000,
   });
   const shifts = useQuery({
-    queryKey: ['shifts-manpower'],
+    queryKey: ['shifts'],
     queryFn: async () =>
       (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/shifts')).data.data,
   });

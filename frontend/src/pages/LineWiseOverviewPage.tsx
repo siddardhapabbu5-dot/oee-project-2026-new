@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { FilterX } from 'lucide-react';
 import {
   Bar,
@@ -200,9 +200,10 @@ export default function LineWiseOverviewPage() {
           params: { from, to },
         })
       ).data.data,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 
-  if (overview.isLoading) return <LoadingBlock />;
   if (!rangeValid) {
     return (
       <div>
@@ -211,6 +212,15 @@ export default function LineWiseOverviewPage() {
         <div className="panel p-6 text-sm" style={{ color: 'var(--muted)' }}>
           From date must be on or before To date.
         </div>
+      </div>
+    );
+  }
+  if (overview.isLoading && !overview.data) {
+    return (
+      <div>
+        <PageHeader title="Line-wise Overview" subtitle="Compare every line — planned vs actual, downtime, and OEE (A × P × Q)" />
+        <DateFilters />
+        <LoadingBlock />
       </div>
     );
   }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   Bar,
   BarChart,
@@ -94,10 +94,11 @@ export default function WeekWiseOeePage() {
   const [lineId, setLineId] = useState('');
 
   const lines = useQuery({
-    queryKey: ['lines-week-wise'],
+    queryKey: ['lines'],
     queryFn: async () =>
       (await api.get<ApiResponse<Array<{ id: string; name: string; code: string }>>>('/lines', { params: { limit: 100 } }))
         .data.data,
+    staleTime: 300_000,
   });
 
   const report = useQuery({
@@ -112,6 +113,8 @@ export default function WeekWiseOeePage() {
           },
         })
       ).data.data,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 
   const allWeeks = report.data?.weeks ?? [];
