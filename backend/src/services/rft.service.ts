@@ -401,6 +401,12 @@ export async function getRftDashboard(
   const byShift = new Map<string, { name: string; produced: number; reject: number }>();
   const byProduct = new Map<string, { name: string; produced: number; reject: number }>();
 
+  const bySku = new Map<string, { name: string; produced: number; reject: number }>();
+  /** day -> areaCode -> reject qty */
+  const heatDayArea = new Map<string, Record<string, number>>();
+  /** day -> shiftName -> { produced, reject } */
+  const heatDayShift = new Map<string, Map<string, { produced: number; reject: number }>>();
+
   for (const area of areas) areaTotals[area.code] = 0;
 
   for (const e of shaped) {
@@ -432,9 +438,26 @@ export async function getRftDashboard(
     product.reject += e.totalReject;
     byProduct.set(e.productId, product);
 
+    const skuLabel = e.sku.packVolume || e.sku.name || e.sku.code;
+    const sku = bySku.get(e.skuId) ?? { name: skuLabel, produced: 0, reject: 0 };
+    sku.produced += e.totalProduced;
+    sku.reject += e.totalReject;
+    bySku.set(e.skuId, sku);
+
+    const areaHeat = heatDayArea.get(date) ?? Object.fromEntries(areas.map((a) => [a.code, 0]));
     for (const [code, qty] of Object.entries(e.byArea)) {
       areaTotals[code] = (areaTotals[code] ?? 0) + qty;
+      areaHeat[code] = (areaHeat[code] ?? 0) + qty;
     }
+    heatDayArea.set(date, areaHeat);
+
+    const shiftHeat = heatDayShift.get(date) ?? new Map();
+    const sh = shiftHeat.get(e.shift.name) ?? { produced: 0, reject: 0 };
+    sh.produced += e.totalProduced;
+    sh.reject += e.totalReject;
+    shiftHeat.set(e.shift.name, sh);
+    heatDayShift.set(date, shiftHeat);
+
     for (const r of e.rejects) {
       if (!r.rejectType) continue;
       const key = r.rejectType.id;
@@ -464,13 +487,16 @@ export async function getRftDashboard(
 
   const byArea = areas.map((a) => {
     const quantity = areaTotals[a.code] ?? 0;
-    const pct = totalReject > 0 ? Number(((quantity / totalReject) * 100).toFixed(1)) : 0;
+    const pctOfRejects = totalReject > 0 ? Number(((quantity / totalReject) * 100).toFixed(1)) : 0;
+    const rejectPctOfProduced =
+      totalProduced > 0 ? Number(((quantity / totalProduced) * 100).toFixed(2)) : 0;
     return {
       code: a.code,
       name: a.shortLabel,
       fullName: a.name,
       quantity,
-      pct,
+      pct: pctOfRejects,
+      rejectPct: rejectPctOfProduced,
     };
   });
 
@@ -494,10 +520,91 @@ export async function getRftDashboard(
       pct: totalReject > 0 ? Number(((t.quantity / totalReject) * 100).toFixed(1)) : 0,
     }));
 
+  const rftTarget = 98;
+  const dailyTrend = [...byDay.entries()]
+    .map(([date, v]) => ({
+      date,
+      ...metricOf(v.produced, v.reject),
+      target: rftTarget,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const rollup = (
+    keyFn: (date: string) => string,
+    labelFn: (key: string) => string,
+  ) => {
+    const map = new Map<string, { produced: number; reject: number }>();
+    for (const row of dailyTrend) {
+      const key = keyFn(row.date);
+      const cur = map.get(key) ?? { produced: 0, reject: 0 };
+      cur.produced += row.produced;
+      cur.reject += row.totalReject;
+      map.set(key, cur);
+    }
+    return [...map.entries()]
+      .map(([key, v]) => ({
+        period: labelFn(key),
+        key,
+        ...metricOf(v.produced, v.reject),
+        target: rftTarget,
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+  };
+
+  const weekKey = (date: string) => {
+    const d = new Date(`${date}T12:00:00`);
+    const onejan = new Date(d.getFullYear(), 0, 1);
+    const week = Math.ceil(((d.getTime() - onejan.getTime()) / 86400000 + onejan.getDay() + 1) / 7);
+    return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
+  };
+
+  // Before vs After: split range at midpoint (Kaizen impact proxy until dedicated Kaizen log exists)
+  const midMs = (start.getTime() + end.getTime()) / 2;
+  let beforeProd = 0;
+  let beforeRej = 0;
+  let afterProd = 0;
+  let afterRej = 0;
+  for (const e of shaped) {
+    const t = new Date(`${e.entryDate}T12:00:00`).getTime();
+    if (t <= midMs) {
+      beforeProd += e.totalProduced;
+      beforeRej += e.totalReject;
+    } else {
+      afterProd += e.totalProduced;
+      afterRej += e.totalReject;
+    }
+  }
+  const kaizen = [
+    { name: 'Before', ...metricOf(beforeProd, beforeRej) },
+    { name: 'After', ...metricOf(afterProd, afterRej) },
+  ];
+
+  const heatmapArea = [...heatDayArea.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, byCode]) => ({
+      date,
+      dateLabel: date.slice(5),
+      ...Object.fromEntries(areas.map((a) => [a.shortLabel, byCode[a.code] ?? 0])),
+      total: Object.values(byCode).reduce((s, n) => s + n, 0),
+    }));
+
+  const shiftNames = [...new Set([...heatDayShift.values()].flatMap((m) => [...m.keys()]))].sort();
+  const heatmapShift = [...heatDayShift.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, map]) => {
+      const row: Record<string, string | number> = { date, dateLabel: date.slice(5) };
+      for (const name of shiftNames) {
+        const v = map.get(name);
+        row[name] = v ? metricOf(v.produced, v.reject).rft : 0;
+      }
+      return row;
+    });
+
   return {
     from: toCalendarDate(start),
     to: toCalendarDate(end),
     formula: 'RFT % = (Total Produced − Total Reject) ÷ Total Produced × 100',
+    rftTarget,
     areas: areas.map((a) => ({
       id: a.id,
       code: a.code,
@@ -512,10 +619,18 @@ export async function getRftDashboard(
       rft,
       defectRate,
       entryCount: shaped.length,
+      rftTarget,
+      vsTarget: rft == null ? null : Number((rft - rftTarget).toFixed(2)),
     },
-    trend: [...byDay.entries()]
-      .map(([date, v]) => ({ date, ...metricOf(v.produced, v.reject) }))
-      .sort((a, b) => a.date.localeCompare(b.date)),
+    trend: dailyTrend,
+    trendWeekly: rollup(weekKey, (k) => k),
+    trendMonthly: rollup(
+      (d) => d.slice(0, 7),
+      (k) => {
+        const [y, m] = k.split('-');
+        return `${m}/${y}`;
+      },
+    ),
     byLine: [...byLine.values()]
       .map((v) => ({ name: v.name, ...metricOf(v.produced, v.reject) }))
       .sort((a, b) => b.produced - a.produced),
@@ -526,9 +641,19 @@ export async function getRftDashboard(
       .map((v) => ({ name: v.name, ...metricOf(v.produced, v.reject) }))
       .sort((a, b) => b.produced - a.produced)
       .slice(0, 12),
+    bySku: [...bySku.values()]
+      .map((v) => ({ name: v.name, ...metricOf(v.produced, v.reject) }))
+      .sort((a, b) => b.produced - a.produced)
+      .slice(0, 12),
     byArea,
+    rejectPctByArea: [...byArea].sort((a, b) => b.rejectPct - a.rejectPct),
     pareto,
     byType,
+    composition: byArea.filter((a) => a.quantity > 0),
+    kaizen,
+    heatmapArea,
+    heatmapShift,
+    heatmapShiftNames: shiftNames,
     rows: shaped
       .map((e) => ({
         id: e.id,

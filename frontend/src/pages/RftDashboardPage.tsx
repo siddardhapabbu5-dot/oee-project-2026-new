@@ -9,6 +9,8 @@ import {
   Legend,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -20,10 +22,23 @@ import { FilterBar, FilterField, FILTER_CTRL } from '../components/FilterBar';
 import { ChartCard, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 import { metricTone } from '../lib/metricBands';
 
-const PARETO_COLORS = ['#0d9488', '#0284c7', '#ca8a04', '#ea580c', '#dc2626', '#7c3aed'];
+const PARETO_COLORS = ['#0d9488', '#0284c7', '#ca8a04', '#ea580c', '#dc2626', '#7c3aed', '#65a30d', '#db2777'];
+const PIE_COLORS = PARETO_COLORS;
+
+type MetricRow = { name: string; produced: number; totalReject: number; firstTimeGood: number; rft: number };
+type TrendRow = {
+  date?: string;
+  period?: string;
+  produced: number;
+  totalReject: number;
+  firstTimeGood: number;
+  rft: number;
+  target: number;
+};
 
 type RftPayload = {
   formula: string;
+  rftTarget: number;
   areas: Array<{ id: string; code: string; name: string; shortLabel: string }>;
   kpis: {
     totalProduced: number;
@@ -32,20 +47,32 @@ type RftPayload = {
     rft: number | null;
     defectRate: number;
     entryCount: number;
+    rftTarget: number;
+    vsTarget: number | null;
   };
-  trend: Array<{ date: string; produced: number; totalReject: number; firstTimeGood: number; rft: number }>;
-  byLine: Array<{ name: string; produced: number; totalReject: number; firstTimeGood: number; rft: number }>;
-  byShift: Array<{ name: string; produced: number; totalReject: number; firstTimeGood: number; rft: number }>;
-  byProduct: Array<{ name: string; produced: number; totalReject: number; firstTimeGood: number; rft: number }>;
-  byArea: Array<{ code: string; name: string; quantity: number; pct: number }>;
+  trend: TrendRow[];
+  trendWeekly: TrendRow[];
+  trendMonthly: TrendRow[];
+  byLine: MetricRow[];
+  byShift: MetricRow[];
+  byProduct: MetricRow[];
+  bySku: MetricRow[];
+  byArea: Array<{ code: string; name: string; quantity: number; pct: number; rejectPct: number }>;
+  rejectPctByArea: Array<{ name: string; rejectPct: number; quantity: number }>;
   pareto: Array<{ name: string; quantity: number; pct: number; cumulativePct: number }>;
   byType: Array<{ name: string; area: string; quantity: number; pct: number }>;
+  composition: Array<{ name: string; quantity: number; pct: number }>;
+  kaizen: Array<{ name: string; produced: number; totalReject: number; firstTimeGood: number; rft: number }>;
+  heatmapArea: Array<Record<string, string | number>>;
+  heatmapShift: Array<Record<string, string | number>>;
+  heatmapShiftNames: string[];
   rows: Array<{
     id: string;
     date: string;
     shift: string;
     line: string;
     product: string;
+    sku: string;
     totalProduced: number;
     byArea: Record<string, number>;
     totalReject: number;
@@ -64,7 +91,7 @@ function monthStart() {
 }
 
 function fmtAxisDate(iso: string) {
-  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  const d = new Date(`${String(iso).slice(0, 10)}T12:00:00`);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
 }
@@ -75,11 +102,28 @@ function fmtDate(iso: string) {
   return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-');
 }
 
+function heatColor(value: number, max: number) {
+  if (max <= 0 || value <= 0) return 'color-mix(in srgb, var(--border) 35%, transparent)';
+  const t = Math.min(1, value / max);
+  if (t < 0.33) return 'color-mix(in srgb, #fbbf24 55%, white)';
+  if (t < 0.66) return 'color-mix(in srgb, #f97316 70%, white)';
+  return 'color-mix(in srgb, #dc2626 80%, white)';
+}
+
+function rftHeatColor(rft: number) {
+  if (rft <= 0) return 'color-mix(in srgb, var(--border) 35%, transparent)';
+  if (rft >= 98) return 'color-mix(in srgb, #16a34a 55%, white)';
+  if (rft >= 95) return 'color-mix(in srgb, #fbbf24 55%, white)';
+  return 'color-mix(in srgb, #dc2626 65%, white)';
+}
+
 export default function RftDashboardPage() {
   const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(() => localYmd());
   const [lineId, setLineId] = useState('');
   const [shiftId, setShiftId] = useState('');
+  const [trendGrain, setTrendGrain] = useState<'day' | 'week' | 'month'>('day');
+  const [heatMode, setHeatMode] = useState<'area' | 'shift'>('area');
   const rangeValid = Boolean(from && to && from <= to);
 
   const lines = useQuery({
@@ -115,13 +159,31 @@ export default function RftDashboardPage() {
     placeholderData: keepPreviousData,
   });
 
-  const trend = useMemo(
-    () => (report.data?.trend ?? []).map((r) => ({ ...r, dateLabel: fmtAxisDate(r.date) })),
-    [report.data?.trend],
-  );
+  const trendSeries = useMemo(() => {
+    const d = report.data;
+    if (!d) return [];
+    const src =
+      trendGrain === 'week' ? d.trendWeekly : trendGrain === 'month' ? d.trendMonthly : d.trend;
+    return (src ?? []).map((r) => ({
+      ...r,
+      label: r.period || (r.date ? fmtAxisDate(r.date) : ''),
+    }));
+  }, [report.data, trendGrain]);
+
+  const heatMax = useMemo(() => {
+    const rows = report.data?.heatmapArea ?? [];
+    let max = 0;
+    for (const row of rows) {
+      for (const [k, v] of Object.entries(row)) {
+        if (k === 'date' || k === 'dateLabel' || k === 'total') continue;
+        if (typeof v === 'number') max = Math.max(max, v);
+      }
+    }
+    return max;
+  }, [report.data?.heatmapArea]);
 
   const filters = (
-    <FilterBar columnsClassName="sm:grid-cols-2 lg:grid-cols-5">
+    <FilterBar columnsClassName="sm:grid-cols-2 lg:grid-cols-6">
       <FilterField label="From">
         <input className={FILTER_CTRL} type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
       </FilterField>
@@ -155,6 +217,17 @@ export default function RftDashboardPage() {
           ))}
         </select>
       </FilterField>
+      <FilterField label="Trend grain">
+        <select
+          className={FILTER_CTRL}
+          value={trendGrain}
+          onChange={(e) => setTrendGrain(e.target.value as 'day' | 'week' | 'month')}
+        >
+          <option value="day">Daily</option>
+          <option value="week">Weekly</option>
+          <option value="month">Monthly</option>
+        </select>
+      </FilterField>
       <FilterField label="This month">
         <button
           type="button"
@@ -173,7 +246,7 @@ export default function RftDashboardPage() {
   if (!rangeValid) {
     return (
       <div>
-        <PageHeader title="RFT Dashboard" subtitle="Right First Time — quality by area" />
+        <PageHeader title="RFT Dashboard" subtitle="Management charts for Right First Time" />
         {filters}
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
           From date must be on or before To date.
@@ -185,7 +258,7 @@ export default function RftDashboardPage() {
   if (report.isError) {
     return (
       <div>
-        <PageHeader title="RFT Dashboard" subtitle="Right First Time — quality by area" />
+        <PageHeader title="RFT Dashboard" subtitle="Management charts for Right First Time" />
         {filters}
         <div className="panel p-6 text-sm" style={{ color: 'var(--danger)' }}>
           Failed to load RFT dashboard.
@@ -197,7 +270,7 @@ export default function RftDashboardPage() {
   if (report.isLoading || !report.data) {
     return (
       <div>
-        <PageHeader title="RFT Dashboard" subtitle="Right First Time — quality by area" />
+        <PageHeader title="RFT Dashboard" subtitle="Management charts for Right First Time" />
         {filters}
         <LoadingBlock />
       </div>
@@ -207,13 +280,14 @@ export default function RftDashboardPage() {
   const d = report.data;
   const k = d.kpis;
   const areas = d.areas ?? [];
+  const target = d.rftTarget ?? 98;
   const rftTone = k.rft == null ? undefined : metricTone('quality', k.rft);
 
   return (
     <div>
       <PageHeader
         title="RFT Dashboard"
-        subtitle="Identify which machine/process is causing quality loss"
+        subtitle="10 management charts — trend, Pareto, shift/SKU, Kaizen impact, heatmap"
       />
       {filters}
 
@@ -223,26 +297,71 @@ export default function RftDashboardPage() {
       >
         <div className="font-semibold">{d.formula}</div>
         <div className="mt-1" style={{ color: 'var(--muted)' }}>
-          Total Reject = sum of area rejects. First Time Good = Total Produced − Total Reject.
+          Target RFT = {target}%. Pareto &amp; composition use area rejects from RFT Entries.
         </div>
       </div>
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <KpiCard label="Total Produced" value={k.totalProduced.toLocaleString()} />
         <KpiCard label="Total Reject" value={k.totalReject.toLocaleString()} tone="bad" />
         <KpiCard label="First Time Good" value={k.firstTimeGood.toLocaleString()} tone="good" />
-        <KpiCard label="RFT %" value={k.rft == null ? '—' : `${k.rft}%`} tone={rftTone} hint="FTG ÷ Produced" />
-        <KpiCard label="Entries" value={String(k.entryCount)} hint="RFT entry rows" />
+        <KpiCard label="RFT %" value={k.rft == null ? '—' : `${k.rft}%`} tone={rftTone} />
+        <KpiCard label="Target" value={`${target}%`} hint="Management KPI" tone="info" />
+        <KpiCard
+          label="vs Target"
+          value={k.vsTarget == null ? '—' : `${k.vsTarget > 0 ? '+' : ''}${k.vsTarget}%`}
+          tone={k.vsTarget != null && k.vsTarget >= 0 ? 'good' : 'bad'}
+        />
       </div>
 
       {d.rows.length === 0 ? (
         <div className="panel p-8 text-center text-sm" style={{ color: 'var(--muted)' }}>
-          No RFT entries yet. Add area-wise rejects on the RFT Entries page.
+          No RFT entries yet. Add area-wise rejects on <strong>RFT Entries</strong>.
         </div>
       ) : (
         <>
           <div className="grid gap-4 xl:grid-cols-2">
-            <ChartCard title="Reject Pareto by Area">
+            {/* 1. RFT % Trend */}
+            <ChartCard title="1. RFT % Trend">
+              <ResponsiveContainer>
+                <LineChart data={trendSeries} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} unit="%" />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="rft" name="RFT %" stroke="var(--chart-1)" strokeWidth={2}>
+                    <ChartValueLabels />
+                  </Line>
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            {/* 5. RFT vs Target */}
+            <ChartCard title="5. RFT vs Target">
+              <ResponsiveContainer>
+                <LineChart data={trendSeries} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis domain={[Math.min(90, target - 5), 100]} tick={{ fontSize: 11, fill: '#64748b' }} unit="%" />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="rft" name="Actual RFT" stroke="var(--chart-1)" strokeWidth={2} />
+                  <Line
+                    type="monotone"
+                    dataKey="target"
+                    name={`Target ${target}%`}
+                    stroke="#94a3b8"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            {/* 2. Area-wise Reject Pareto */}
+            <ChartCard title="2. Area-wise Reject — Pareto">
               <ResponsiveContainer>
                 <ComposedChart data={d.pareto} margin={{ top: 18, right: 12, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -270,70 +389,59 @@ export default function RftDashboardPage() {
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="RFT Trend">
+            {/* 3. Reject % by Area */}
+            <ChartCard title="3. Reject % by Area">
               <ResponsiveContainer>
-                <LineChart data={trend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
+                <BarChart data={d.rejectPctByArea ?? d.byArea} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} unit="%" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} unit="%" />
                   <Tooltip />
-                  <Line type="monotone" dataKey="rft" name="RFT %" stroke="var(--chart-1)" strokeWidth={2}>
+                  <Bar dataKey="rejectPct" name="Reject % of produced" fill="var(--chart-3)" radius={4}>
                     <ChartValueLabels />
-                  </Line>
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            <ChartCard title="Produced vs Reject vs FTG">
-              <ResponsiveContainer>
-                <BarChart data={trend} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="firstTimeGood" name="First Time Good" stackId="a" fill="var(--chart-2)" />
-                  <Bar dataKey="totalReject" name="Total Reject" stackId="a" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Reject by Type (Pareto detail)">
+            {/* 4. Defect Type */}
+            <ChartCard title="4. Defect Type">
               <ResponsiveContainer>
                 <BarChart data={d.byType} margin={{ top: 18, right: 8, left: 0, bottom: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis
-                    dataKey="name"
-                    tick={{ fontSize: 10, fill: '#64748b' }}
-                    interval={0}
-                    angle={-25}
-                    textAnchor="end"
-                    height={50}
-                  />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-25} textAnchor="end" height={50} />
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
-                  <Bar dataKey="quantity" name="Qty" fill="var(--chart-4)" radius={4}>
+                  <Bar dataKey="quantity" name="Defect qty" fill="var(--chart-4)" radius={4}>
                     <ChartValueLabels />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="RFT by Line">
+            {/* 8. Reject Composition Pie */}
+            <ChartCard title="8. Reject Composition">
               <ResponsiveContainer>
-                <BarChart data={d.byLine} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} unit="%" />
+                <PieChart>
+                  <Pie
+                    data={d.composition ?? []}
+                    dataKey="quantity"
+                    nameKey="name"
+                    outerRadius={95}
+                    label={({ name, pct }) => `${name} ${pct}%`}
+                  >
+                    {(d.composition ?? []).map((_, i) => (
+                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
                   <Tooltip />
-                  <Bar dataKey="rft" name="RFT %" fill="var(--chart-1)" radius={4}>
-                    <ChartValueLabels />
-                  </Bar>
-                </BarChart>
+                  <Legend />
+                </PieChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="RFT by Shift">
+            {/* 6. Shift-wise RFT */}
+            <ChartCard title="6. Shift-wise RFT">
               <ResponsiveContainer>
                 <BarChart data={d.byShift} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -346,6 +454,141 @@ export default function RftDashboardPage() {
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
+
+            {/* 7. SKU-wise RFT */}
+            <ChartCard title="7. SKU-wise RFT">
+              <ResponsiveContainer>
+                <BarChart data={d.bySku ?? []} margin={{ top: 18, right: 8, left: 0, bottom: 40 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-25} textAnchor="end" height={50} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} unit="%" />
+                  <Tooltip />
+                  <Bar dataKey="rft" name="RFT %" fill="var(--chart-2)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            {/* 9. Before vs After Kaizen */}
+            <ChartCard title="9. Before vs After Kaizen">
+              <p className="mb-2 px-1 text-xs" style={{ color: 'var(--muted)' }}>
+                Period split (first half vs second half of selected dates) — proves improvement direction until a dedicated Kaizen log is added.
+              </p>
+              <ResponsiveContainer>
+                <BarChart data={d.kaizen ?? []} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} unit="%" />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="rft" name="RFT %" fill="var(--chart-1)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            {/* Extra: FTG vs Reject stack for context */}
+            <ChartCard title="Produced quality mix (FTG vs Reject)">
+              <ResponsiveContainer>
+                <BarChart data={trendSeries} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="firstTimeGood" name="First Time Good" stackId="a" fill="var(--chart-2)" />
+                  <Bar dataKey="totalReject" name="Total Reject" stackId="a" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
+
+          {/* 10. Heatmap */}
+          <div className="panel mt-5 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3" style={{ borderColor: 'var(--border)' }}>
+              <div>
+                <div className="font-semibold">10. RFT Heatmap</div>
+                <div className="text-xs" style={{ color: 'var(--muted)' }}>
+                  {heatMode === 'area' ? 'Day × Area (reject qty)' : 'Day × Shift (RFT %)'}
+                </div>
+              </div>
+              <select
+                className={FILTER_CTRL}
+                style={{ width: 'auto', minWidth: '10rem' }}
+                value={heatMode}
+                onChange={(e) => setHeatMode(e.target.value as 'area' | 'shift')}
+              >
+                <option value="area">Day × Area</option>
+                <option value="shift">Day × Shift</option>
+              </select>
+            </div>
+            <div className="table-wrap">
+              {heatMode === 'area' ? (
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      {areas.map((a) => (
+                        <th key={a.code}>{a.shortLabel}</th>
+                      ))}
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(d.heatmapArea ?? []).map((row) => (
+                      <tr key={String(row.date)}>
+                        <td>{fmtDate(String(row.date))}</td>
+                        {areas.map((a) => {
+                          const val = Number(row[a.shortLabel] ?? 0);
+                          return (
+                            <td
+                              key={a.code}
+                              className="tabular-nums text-center"
+                              style={{ background: heatColor(val, heatMax) }}
+                            >
+                              {val || '—'}
+                            </td>
+                          );
+                        })}
+                        <td className="tabular-nums font-medium">{Number(row.total ?? 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      {(d.heatmapShiftNames ?? []).map((s) => (
+                        <th key={s}>{s}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(d.heatmapShift ?? []).map((row) => (
+                      <tr key={String(row.date)}>
+                        <td>{fmtDate(String(row.date))}</td>
+                        {(d.heatmapShiftNames ?? []).map((s) => {
+                          const val = Number(row[s] ?? 0);
+                          return (
+                            <td
+                              key={s}
+                              className="tabular-nums text-center font-medium"
+                              style={{ background: rftHeatColor(val) }}
+                            >
+                              {val ? `${val}%` : '—'}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
 
           <div className="table-wrap mt-5">
@@ -356,6 +599,7 @@ export default function RftDashboardPage() {
                   <th>Shift</th>
                   <th>Line</th>
                   <th>Product</th>
+                  <th>SKU</th>
                   <th>Total Produced</th>
                   {areas.map((a) => (
                     <th key={a.code}>{a.shortLabel} Reject</th>
@@ -372,6 +616,7 @@ export default function RftDashboardPage() {
                     <td>{r.shift}</td>
                     <td>{r.line}</td>
                     <td>{r.product}</td>
+                    <td>{r.sku}</td>
                     <td className="tabular-nums">{r.totalProduced.toLocaleString()}</td>
                     {areas.map((a) => (
                       <td key={a.code} className="tabular-nums">
@@ -384,19 +629,7 @@ export default function RftDashboardPage() {
                     <td className="tabular-nums font-medium" style={{ color: 'var(--success)' }}>
                       {r.firstTimeGood.toLocaleString()}
                     </td>
-                    <td
-                      className="tabular-nums font-semibold"
-                      style={{
-                        color:
-                          r.rft == null
-                            ? 'var(--muted)'
-                            : r.rft >= 98
-                              ? 'var(--success)'
-                              : r.rft >= 95
-                                ? 'var(--warn, #ca8a04)'
-                                : 'var(--danger)',
-                      }}
-                    >
+                    <td className="tabular-nums font-semibold">
                       {r.rft == null ? '—' : `${r.rft}%`}
                     </td>
                   </tr>

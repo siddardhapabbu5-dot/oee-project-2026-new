@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>IIOT OEE — Proposal & Pricing | 1BY0 Solutions</title>
+  <style>
+    @page { size: A4; margin: 10mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: #1a2332;
+      background: #fff;
+      font-size: 10.5px;
+      line-height: 1.42;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      break-after: page;
+      page-break-after: always;
+      width: 100%;
+      overflow: hidden;
+      padding-bottom: 8px;
+    }
+    .page:last-child { break-after: auto; page-break-after: auto; }
+
+    .page.cover-page { padding-bottom: 0; height: 277mm; max-height: 277mm; }
+    .cover {
+      background: linear-gradient(145deg, #0b2430 0%, #0f3d3a 55%, #1a5c52 100%);
+      color: #f4f7f8;
+      border-radius: 14px;
+      padding: 20mm 14mm 12mm;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::before {
+      content: "";
+      position: absolute; right: -50px; top: -30px;
+      width: 200px; height: 200px; border-radius: 50%;
+      background: rgba(126,200,184,0.12);
+    }
+    .eyebrow {
+      font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
+      color: #7ec8b8; font-weight: 700; margin-bottom: 10px; position: relative; z-index: 1;
+    }
+    .cover h1 {
+      font-size: 28px; line-height: 1.15; font-weight: 700;
+      max-width: 90%; position: relative; z-index: 1;
+    }
+    .cover .lead {
+      margin-top: 12px; font-size: 13px; color: #c5d4db;
+      max-width: 85%; line-height: 1.5; position: relative; z-index: 1;
+    }
+    .meta-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; position: relative; z-index: 1; }
+    .pill {
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
+      padding: 5px 11px; border-radius: 999px; font-size: 10.5px; color: #e8f4f1;
+    }
+    .cover-box {
+      margin-top: 18px; background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14); border-radius: 12px;
+      padding: 12px 14px; position: relative; z-index: 1;
+    }
+    .cover-box strong { color: #7ec8b8; display: block; margin-bottom: 4px; font-size: 11px; }
+    .cover-foot {
+      border-top: 1px solid rgba(255,255,255,0.15); padding-top: 12px;
+      display: flex; justify-content: space-between; font-size: 10.5px; color: #9db5b0;
+      position: relative; z-index: 1;
+    }
+
+    .brand {
+      font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase;
+      color: #2e8b7a; font-weight: 700; margin-bottom: 4px;
+    }
+    h1.page-title { font-size: 18px; color: #0f2d3a; margin-bottom: 3px; }
+    .sub { color: #5a6b75; font-size: 11px; margin-bottom: 10px; }
+    h2 {
+      font-size: 12px; color: #0f2d3a; border-left: 4px solid #2e8b7a;
+      padding-left: 8px; margin: 11px 0 6px;
+    }
+    p { color: #334155; margin-bottom: 5px; }
+    ul { margin: 2px 0 8px 15px; color: #334155; }
+    li { margin-bottom: 2px; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .grid4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 7px; }
+
+    .card {
+      border: 1px solid #d7e0e6; border-radius: 10px;
+      padding: 9px 10px; background: #f7fafb;
+    }
+    .card.teal { background: #eef8f5; border-color: #b7ddd4; }
+    .card.amber { background: #fff8e8; border-color: #f0d48a; }
+    .card.dark { background: #0f2d3a; color: #e8f4f1; border-color: #0f2d3a; }
+    .card.dark strong { color: #7ec8b8; }
+    .card.featured {
+      background: #eef8f5; border: 2px solid #2e8b7a;
+      position: relative;
+    }
+    .card.featured .badge {
+      position: absolute; top: -8px; right: 10px;
+      background: #2e8b7a; color: #fff; font-size: 8.5px;
+      font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 999px;
+    }
+    .card strong { display: block; color: #0f2d3a; margin-bottom: 3px; font-size: 11.5px; }
+    .card .tag {
+      font-size: 9px; font-weight: 700; color: #2e8b7a;
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px;
+    }
+    .price {
+      font-size: 20px; font-weight: 700; color: #0f2d3a; margin: 4px 0 2px;
+    }
+    .price small { font-size: 10px; font-weight: 600; color: #64748b; }
+    .price-note { font-size: 9.5px; color: #64748b; margin-bottom: 6px; }
+
+    table {
+      width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 10px;
+    }
+    th, td {
+      border: 1px solid #d7e0e6; padding: 5px 6px; text-align: left; vertical-align: top;
+    }
+    th { background: #0f2d3a; color: #fff; font-weight: 600; }
+    tr:nth-child(even) td { background: #f7fafb; }
+    td.num { font-weight: 700; color: #0f2d3a; white-space: nowrap; }
+
+    .callout {
+      border-radius: 10px; padding: 8px 10px; margin: 8px 0;
+      background: #eef8f5; border: 1px solid #b7ddd4; color: #1a433c;
+    }
+    .callout.warn {
+      background: #fff8e8; border-color: #f0d48a; color: #6b5420;
+    }
+    .footer {
+      display: flex; justify-content: space-between; font-size: 9px;
+      color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 6px; margin-top: 10px;
+    }
+    .formula {
+      background: #0f2d3a; color: #fff; text-align: center;
+      padding: 9px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- COVER -->
+  <section class="page cover-page">
+    <div class="cover">
+      <div>
+        <div class="eyebrow">1BY0 Solutions · IIOT · OEE</div>
+        <h1>OEE Proposal &amp; Investment Guide</h1>
+        <p class="lead">
+          A practical commercial pack for presenting an IIOT-ready OEE system to manufacturing units —
+          Phase-1 scope, success criteria, and recommended software pricing.
+        </p>
+        <div class="meta-row">
+          <span class="pill">IIOT-ready OEE</span>
+          <span class="pill">1-Line Phase-1</span>
+          <span class="pill">TPM · 4M · RFT · Kaizen ready</span>
+        </div>
+        <div class="cover-box">
+          <strong>Promise to the plant</strong>
+          In 90 days on one line: live OEE, top losses ranked, and at least one proven before/after improvement — with low risk and clear ownership.
+        </div>
+      </div>
+      <div class="cover-foot">
+        <span>Commercial &amp; delivery guide · Adjust prices to your market</span>
+        <span>Confidential</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- PHASE-1 PROPOSAL -->
+  <section class="page">
+    <div class="brand">1BY0 Solutions · IIOT OEE</div>
+    <h1 class="page-title">1. Phase-1 Proposal (hand this to management)</h1>
+    <p class="sub">Keep the first sale small, measurable, and easy to approve.</p>
+
+    <div class="formula">Phase-1 Goal: One line · 90 days · Visible loss reduction · Expand later</div>
+
+    <h2>Scope</h2>
+    <div class="grid2">
+      <div class="card teal">
+        <div class="tag">Included</div>
+        <ul>
+          <li>1 plant · <strong>1 production line</strong></li>
+          <li>Masters: users, shifts, machines, SKUs, downtime reasons</li>
+          <li>Work Order Planning + hourly Production Entries</li>
+          <li>Downtime &amp; Changeover logging</li>
+          <li>OEE dashboards (Plant / Line / Day / Week)</li>
+          <li>Excel reports + role-based access</li>
+          <li>Operator + Supervisor training</li>
+          <li>Weekly review support during Phase-1</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <div class="tag">Not in Phase-1 (optional later)</div>
+        <ul>
+          <li>Multi-line / multi-plant rollout</li>
+          <li>PLC / sensor IIOT auto-capture</li>
+          <li>Custom ERP / SAP integration</li>
+          <li>Mobile app / Andon hardware</li>
+          <li>24×7 on-site support</li>
+        </ul>
+        <p style="margin-top:6px;">Start digital OEE discipline first. IIOT sensors after data quality is proven.</p>
+      </div>
+    </div>
+
+    <h2>Success criteria (agree in writing)</h2>
+    <table>
+      <thead><tr><th>#</th><th>Criterion</th><th>Target</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Shift data completeness (hourly + downtime)</td><td>≥ 90%</td></tr>
+        <tr><td>2</td><td>OEE dashboard used in daily / weekly meeting</td><td>Yes</td></tr>
+        <tr><td>3</td><td>Top downtime reasons ranked by minutes</td><td>Top 5 visible</td></tr>
+        <tr><td>4</td><td>At least one improvement with before/after</td><td>1–2 projects</td></tr>
+        <tr><td>5</td><td>Phase-1 review with Plant Head</td><td>End of Day 90</td></tr>
+      </tbody>
+    </table>
+
+    <h2>90-day timeline</h2>
+    <div class="grid4">
+      <div class="card dark"><strong>Week 1–2</strong>Masters, setup, training</div>
+      <div class="card dark"><strong>Week 3–4</strong>Daily entry discipline</div>
+      <div class="card dark"><strong>Week 5–8</strong>Pareto + first Kaizen</div>
+      <div class="card dark"><strong>Week 9–12</strong>Before/after review → expand</div>
+    </div>
+
+    <h2>Customer must provide</h2>
+    <ul>
+      <li>Named <strong>champion</strong> (Production Manager / Supervisor)</li>
+      <li>Approved OEE policy (startup / lunch / changeover treatment)</li>
+      <li>Standard downtime &amp; quality reason list</li>
+      <li>Weekly 30–45 min review slot with Production + Maintenance</li>
+    </ul>
+
+    <div class="footer"><span>IIOT OEE · Proposal &amp; Pricing</span><span>Page 2</span></div>
+  </section>
+
+  <!-- PRICING PACKAGES -->
+  <section class="page">
+    <div class="brand">1BY0 Solutions · IIOT OEE</div>
+    <h1 class="page-title">2. Recommended Software Packages &amp; Prices</h1>
+    <p class="sub">Indicative India market ranges for SME / mid-size plants. Adjust for plant size, urgency, and competition.</p>
+
+    <div class="callout warn">
+      <strong>How to use this page:</strong> These are <em>recommended selling prices</em>, not fixed costs. Pick a band, then quote a round number. Always separate <strong>one-time setup</strong> from <strong>annual support</strong>.
+    </div>
+
+    <div class="grid3" style="margin-top:10px;">
+      <div class="card">
+        <div class="tag">Package A</div>
+        <strong>Starter — 1 Line OEE</strong>
+        <div class="price">₹1.5–2.5 Lakh <small>one-time</small></div>
+        <div class="price-note">+ ₹25–40k / year support</div>
+        <ul>
+          <li>90-day Phase-1 delivery</li>
+          <li>Training (ops + supervisor)</li>
+          <li>Weekly OEE reviews (Phase-1)</li>
+          <li>Best for first customer / proof</li>
+        </ul>
+      </div>
+      <div class="card featured">
+        <div class="badge">Most sold</div>
+        <div class="tag">Package B</div>
+        <strong>Plant Pack — Multi-line OEE</strong>
+        <div class="price">₹4–8 Lakh <small>one-time</small></div>
+        <div class="price-note">+ ₹60k–1.2 Lakh / year support</div>
+        <ul>
+          <li>All lines in one plant</li>
+          <li>Full OEE dashboards + reports</li>
+          <li>Role setup + SOP templates</li>
+          <li>Monthly improvement review (3–6 mo)</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag">Package C</div>
+        <strong>Enterprise / Group IIOT</strong>
+        <div class="price">₹10–25 Lakh+ <small>one-time</small></div>
+        <div class="price-note">+ 15–20% AMC / year</div>
+        <ul>
+          <li>Multi-plant / multi-site</li>
+          <li>Custom workflows / SSO</li>
+          <li>ERP / SAP + IIOT connectors</li>
+          <li>Dedicated success manager</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Optional add-ons (quote separately)</h2>
+    <table>
+      <thead><tr><th>Add-on</th><th>What it is</th><th>Indicative price</th></tr></thead>
+      <tbody>
+        <tr><td>Extra production line</td><td>Same plant, additional line OEE setup</td><td class="num">₹40–80k / line</td></tr>
+        <tr><td>IIOT sensor / PLC integration</td><td>Auto count + run/stop (per line)</td><td class="num">₹1.5–4 Lakh / line*</td></tr>
+        <tr><td>Custom report pack</td><td>Plant-specific PDF/Excel formats</td><td class="num">₹30–75k</td></tr>
+        <tr><td>On-site training day</td><td>Extra beyond Phase-1 training</td><td class="num">₹15–25k / day</td></tr>
+        <tr><td>Kaizen facilitation (monthly)</td><td>Facilitated loss-reduction workshop</td><td class="num">₹20–40k / month</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:9.5px;color:#64748b;">*IIOT / sensor price depends on hardware brand, PLC access, and cabling — often quoted with a local automation partner.</p>
+
+    <h2>Simple quote examples (copy into proposals)</h2>
+    <table>
+      <thead><tr><th>Customer type</th><th>Recommended offer</th><th>Example quote</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>First plant / hesitant buyer</td>
+          <td>Package A Starter OEE</td>
+          <td class="num">₹1,99,000 + GST · Year-1 support ₹30,000</td>
+        </tr>
+        <tr>
+          <td>1 plant, 3–6 lines, ready to decide</td>
+          <td>Package B Plant Pack</td>
+          <td class="num">₹5,90,000 + GST · AMC ₹90,000 / year</td>
+        </tr>
+        <tr>
+          <td>Group with 2–3 plants</td>
+          <td>Package C (phased)</td>
+          <td class="num">₹12–18 Lakh phased · AMC 18%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="footer"><span>IIOT OEE · Proposal &amp; Pricing</span><span>Page 3</span></div>
+  </section>
+
+  <!-- HOW TO PRICE / YOUR COST -->
+  <section class="page">
+    <div class="brand">1BY0 Solutions · IIOT OEE</div>
+    <h1 class="page-title">3. How to Decide Your Price (and Your Cost)</h1>
+    <p class="sub">If you are unsure of cost, separate <em>your delivery cost</em> from <em>customer selling price</em>.</p>
+
+    <h2>A. Estimate your delivery cost (internal)</h2>
+    <table>
+      <thead><tr><th>Work item</th><th>Effort (Phase-1)</th><th>Rough internal cost*</th></tr></thead>
+      <tbody>
+        <tr><td>Discovery + OEE policy workshop</td><td>2–3 days</td><td class="num">₹15–30k</td></tr>
+        <tr><td>Setup masters + configuration</td><td>3–5 days</td><td class="num">₹25–50k</td></tr>
+        <tr><td>Training (operators + supervisors)</td><td>2 days</td><td class="num">₹15–25k</td></tr>
+        <tr><td>Go-live support (2–4 weeks)</td><td>part-time</td><td class="num">₹30–60k</td></tr>
+        <tr><td>Weekly OEE reviews + report (Phase-1)</td><td>8–10 calls</td><td class="num">₹20–40k</td></tr>
+        <tr><td>Hosting / cloud / domain (Year 1)</td><td>—</td><td class="num">₹10–30k</td></tr>
+        <tr><td><strong>Total internal Phase-1 cost (typical)</strong></td><td></td><td class="num"><strong>₹1.0–2.0 Lakh</strong></td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:9.5px;color:#64748b;">*Based on blended consulting/dev rate ≈ ₹4–8k/day in India SME services. Use your real salary/overhead.</p>
+
+    <div class="callout">
+      <strong>Pricing rule of thumb:</strong> Selling price ≈ <strong>1.5× to 2.5×</strong> your delivery cost for Phase-1,
+      and higher margin on Plant Pack once the OEE product is productized.
+      Example: if Phase-1 costs you ₹1.2 Lakh to deliver, quote <strong>₹1.99–2.49 Lakh</strong>.
+    </div>
+
+    <h2>B. Payment terms (recommended)</h2>
+    <div class="grid3">
+      <div class="card teal"><strong>40%</strong>On PO / kickoff</div>
+      <div class="card teal"><strong>40%</strong>On go-live (data entry live)</div>
+      <div class="card teal"><strong>20%</strong>On Phase-1 review (Day 90)</div>
+    </div>
+
+    <h2>C. What to say when customer asks “Why this price?”</h2>
+    <ul>
+      <li>“This is not only software — it includes OEE setup, training, and weekly loss reviews.”</li>
+      <li>“Phase-1 is priced to prove OEE value on one line before you invest plant-wide.”</li>
+      <li>“Annual support covers updates, user help, and KPI review cadence.”</li>
+      <li>“IIOT sensor automation is optional Phase-2 after manual data quality is stable.”</li>
+    </ul>
+
+    <h2>D. Discount policy (protect your margin)</h2>
+    <div class="grid2">
+      <div class="card">
+        <strong>Allowed</strong>
+        <ul>
+          <li>5–10% for advance full payment</li>
+          <li>Phase-1 credit against Plant Pack (e.g. ₹50–75k)</li>
+          <li>Multi-year AMC prepaid discount</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <strong>Avoid</strong>
+        <ul>
+          <li>Free unlimited customisation</li>
+          <li>Open-ended “until management is happy”</li>
+          <li>Cutting training / weekly reviews to win price</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer"><span>IIOT OEE · Proposal &amp; Pricing</span><span>Page 4</span></div>
+  </section>
+
+  <!-- ONE PAGE QUOTE TEMPLATE -->
+  <section class="page">
+    <div class="brand">1BY0 Solutions · IIOT OEE</div>
+    <h1 class="page-title">4. Ready-to-Fill Quote Template</h1>
+    <p class="sub">Fill blanks before the meeting. Print as last page or separate commercial sheet.</p>
+
+    <div class="card" style="padding:12px 14px; margin-bottom:10px;">
+      <div class="grid2">
+        <div>
+          <p><strong>Customer / Plant:</strong> ______________________________</p>
+          <p><strong>Line for Phase-1:</strong> ______________________________</p>
+          <p><strong>Champion (name/role):</strong> ________________________</p>
+        </div>
+        <div>
+          <p><strong>Proposed start date:</strong> __________________________</p>
+          <p><strong>Prepared by:</strong> 1BY0 Solutions / _______________</p>
+          <p><strong>Valid until:</strong> ______________________________</p>
+        </div>
+      </div>
+    </div>
+
+    <table>
+      <thead><tr><th>Item</th><th>Description</th><th>Amount (INR)</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>IIOT OEE — Phase-1</strong></td>
+          <td>1 line · 90 days · setup · training · weekly OEE reviews</td>
+          <td class="num">₹ _____________</td>
+        </tr>
+        <tr>
+          <td>Year-1 Support / AMC</td>
+          <td>Updates, support, remote assistance</td>
+          <td class="num">₹ _____________</td>
+        </tr>
+        <tr>
+          <td>Optional add-ons</td>
+          <td>Extra line / custom reports / IIOT sensors (attach list)</td>
+          <td class="num">₹ _____________</td>
+        </tr>
+        <tr>
+          <td colspan="2"><strong>Subtotal</strong></td>
+          <td class="num">₹ _____________</td>
+        </tr>
+        <tr>
+          <td colspan="2">GST (as applicable)</td>
+          <td class="num">₹ _____________</td>
+        </tr>
+        <tr>
+          <td colspan="2"><strong>Total investment</strong></td>
+          <td class="num"><strong>₹ _____________</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Suggested default numbers (edit before printing)</h2>
+    <div class="grid3">
+      <div class="card teal">
+        <div class="tag">Conservative</div>
+        <strong>Phase-1 ₹1,75,000</strong>
+        Support ₹25,000 / year<br/>Use when first reference is critical.
+      </div>
+      <div class="card featured">
+        <div class="badge">Recommended</div>
+        <div class="tag">Standard</div>
+        <strong>Phase-1 ₹1,99,000</strong>
+        Support ₹30,000 / year<br/>Best balance of value and margin.
+      </div>
+      <div class="card amber">
+        <div class="tag">Premium</div>
+        <strong>Phase-1 ₹2,49,000</strong>
+        Support ₹40,000 / year<br/>Includes stronger on-site presence.
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:12px;">
+      <strong>Closing line for the meeting:</strong>
+      “Approve Phase-1 OEE on one line at ₹______. If success criteria are met, we roll out remaining lines under Plant Pack with Phase-1 fee credit.”
+    </div>
+
+    <div style="margin-top:18px; padding:14px; border-radius:12px; background:linear-gradient(145deg,#0b2430,#1a5c52); color:#fff;">
+      <div style="font-size:10px; letter-spacing:0.16em; text-transform:uppercase; color:#7ec8b8; font-weight:700;">Next step</div>
+      <div style="font-size:15px; font-weight:700; margin-top:6px;">Book kickoff within 7 days of PO · Assign champion · Freeze OEE policy</div>
+      <div style="margin-top:8px; font-size:11px; color:#c5d4db;">1BY0 Solutions · IIOT OEE · Manufacturing digital productivity</div>
+    </div>
+
+    <div class="footer"><span>IIOT OEE · Proposal &amp; Pricing · Fill before customer meeting</span><span>Page 5</span></div>
+  </section>
+
+</body>
+</html>
