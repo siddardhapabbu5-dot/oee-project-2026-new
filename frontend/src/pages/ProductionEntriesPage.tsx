@@ -1574,21 +1574,6 @@ export default function ProductionEntriesPage() {
               <h3 className="mb-3 font-semibold">Hourly Production Log</h3>
               <div className="table-wrap fit-cols">
                 <table className="data entry-log">
-                  <colgroup>
-                    <col style={{ width: '10%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '7%' }} />
-                    <col style={{ width: '7%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '6%' }} />
-                    <col style={{ width: '8%' }} />
-                    <col style={{ width: '5.25rem' }} />
-                  </colgroup>
                   <thead>
                     <tr>
                       <th title="Brand">Brand</th>
@@ -1660,7 +1645,7 @@ export default function ProductionEntriesPage() {
                     })}
                     {hourlyLog.length === 0 ? (
                       <tr>
-                        <td colSpan={13} style={{ color: 'var(--muted)' }}>
+                        <td colSpan={14} style={{ color: 'var(--muted)' }}>
                           No hourly entries yet
                         </td>
                       </tr>

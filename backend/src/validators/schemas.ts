@@ -146,6 +146,14 @@ export const productionEntrySchema = z.object({
   rejectCases: z.number().nonnegative(),
   remarks: z.string().optional().nullable(),
   status: z.nativeEnum(EntryStatus).optional(),
+  reworkByZone: z
+    .array(
+      z.object({
+        zone: z.enum(['BLOW_MOULD', 'FILLER', 'CAPPER', 'LABEL', 'PACKAGING', 'OTHER']),
+        reworkCases: z.number().nonnegative(),
+      }),
+    )
+    .optional(),
 });
 
 export const downtimeEntryBaseSchema = z.object({
@@ -231,6 +239,25 @@ export const salesEntrySchema = z.object({
   casesSold: z.number().positive(),
   unitPrice: z.number().nonnegative().optional(),
   remarks: z.string().optional().nullable(),
+});
+
+export const rftEntrySchema = z.object({
+  entryDate: z.string().min(8),
+  lineId: z.string().min(1),
+  shiftId: z.string().min(1),
+  productId: z.string().min(1),
+  skuId: z.string().min(1),
+  totalProduced: z.number().nonnegative(),
+  remarks: z.string().optional().nullable(),
+  rejects: z
+    .array(
+      z.object({
+        areaId: z.string().min(1),
+        rejectTypeId: z.string().optional().nullable(),
+        quantity: z.number().nonnegative(),
+      }),
+    )
+    .optional(),
 });
 
 export const shiftClosingSchema = z.object({

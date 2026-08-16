@@ -1,10 +1,11 @@
-import type { Prisma, EntryStatus } from '@prisma/client';
+import type { Prisma, EntryStatus, ReworkZone } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import { prisma } from '../config/prisma.js';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js';
 import { writeAuditLog } from '../utils/audit.js';
 import { calcLoss, minutesBetween } from '../utils/oee.js';
 import { calendarDateRange, parseCalendarDate, toCalendarDate } from '../utils/dates.js';
+import { normalizeReworkByZone, sumReworkCases, type ReworkByZoneInput } from '../utils/reworkZones.js';
 import type { Request } from 'express';
 import type { AuthUser } from '../middleware/auth.js';
 
@@ -15,7 +16,13 @@ const planInclude = {
   product: { include: { brand: true } },
   sku: true,
   supervisor: { select: { id: true, firstName: true, lastName: true, email: true } },
-  productionEntries: { where: { deletedAt: null }, orderBy: { hourStart: 'asc' as const } },
+  productionEntries: {
+    where: { deletedAt: null },
+    orderBy: { hourStart: 'asc' as const },
+    include: {
+      reworkEntries: { where: { deletedAt: null }, orderBy: { zone: 'asc' as const } },
+    },
+  },
   downtimeEntries: {
     where: { deletedAt: null },
     orderBy: { startTime: 'asc' as const },
@@ -837,6 +844,7 @@ export async function createProductionEntry(
     rejectCases: number;
     remarks?: string | null;
     status?: EntryStatus;
+    reworkByZone?: ReworkByZoneInput[];
   },
   req?: Request,
 ) {
@@ -844,21 +852,41 @@ export async function createProductionEntry(
   if (data.goodCases + data.rejectCases > data.actualCases + 0.0001) {
     throw new ValidationError('Accepted + Hold cases cannot exceed Production cases');
   }
+  const reworkRows = normalizeReworkByZone(data.reworkByZone);
+  const reworkTotal = sumReworkCases(reworkRows);
+  if (data.rejectCases + reworkTotal > data.actualCases + 0.0001) {
+    throw new ValidationError('Hold + zone rework cases cannot exceed Production cases');
+  }
 
-  const entry = await prisma.productionEntry.create({
-    data: {
-      planId: data.planId,
-      hourStart: new Date(data.hourStart),
-      hourEnd: new Date(data.hourEnd),
-      plannedCases: data.plannedCases,
-      actualCases: data.actualCases,
-      goodCases: data.goodCases,
-      rejectCases: data.rejectCases,
-      lossCases: calcLoss(data.plannedCases, data.actualCases),
-      remarks: data.remarks,
-      status: data.status ?? 'SUBMITTED',
-      createdById: req!.user!.id,
-    },
+  const entry = await prisma.$transaction(async (tx) => {
+    const created = await tx.productionEntry.create({
+      data: {
+        planId: data.planId,
+        hourStart: new Date(data.hourStart),
+        hourEnd: new Date(data.hourEnd),
+        plannedCases: data.plannedCases,
+        actualCases: data.actualCases,
+        goodCases: data.goodCases,
+        rejectCases: data.rejectCases,
+        lossCases: calcLoss(data.plannedCases, data.actualCases),
+        remarks: data.remarks,
+        status: data.status ?? 'SUBMITTED',
+        createdById: req!.user!.id,
+      },
+    });
+    if (reworkRows.length > 0) {
+      await tx.reworkEntry.createMany({
+        data: reworkRows.map((r) => ({
+          productionEntryId: created.id,
+          zone: r.zone,
+          reworkCases: r.reworkCases,
+        })),
+      });
+    }
+    return tx.productionEntry.findFirstOrThrow({
+      where: { id: created.id },
+      include: { reworkEntries: { where: { deletedAt: null } } },
+    });
   });
 
   // Notify managers if target missed
@@ -892,8 +920,57 @@ export async function createProductionEntry(
   return entry;
 }
 
+async function syncReworkEntries(
+  tx: Prisma.TransactionClient,
+  productionEntryId: string,
+  reworkByZone: ReworkByZoneInput[] | undefined,
+) {
+  if (reworkByZone === undefined) return;
+  const rows = normalizeReworkByZone(reworkByZone);
+  const wanted = new Map(rows.map((r) => [r.zone, r.reworkCases]));
+  const existing = await tx.reworkEntry.findMany({
+    where: { productionEntryId, deletedAt: null },
+  });
+  const now = new Date();
+
+  for (const row of existing) {
+    const next = wanted.get(row.zone as ReworkZone);
+    if (next == null || next <= 0) {
+      await tx.reworkEntry.update({
+        where: { id: row.id },
+        data: { deletedAt: now, reworkCases: 0 },
+      });
+    } else {
+      await tx.reworkEntry.update({
+        where: { id: row.id },
+        data: { reworkCases: next },
+      });
+      wanted.delete(row.zone as ReworkZone);
+    }
+  }
+
+  for (const [zone, reworkCases] of wanted) {
+    const softDeleted = await tx.reworkEntry.findFirst({
+      where: { productionEntryId, zone, deletedAt: { not: null } },
+    });
+    if (softDeleted) {
+      await tx.reworkEntry.update({
+        where: { id: softDeleted.id },
+        data: { deletedAt: null, reworkCases },
+      });
+    } else {
+      await tx.reworkEntry.create({
+        data: { productionEntryId, zone, reworkCases },
+      });
+    }
+  }
+}
+
 export async function updateProductionEntry(id: string, data: Record<string, unknown>, req?: Request) {
-  const before = await prisma.productionEntry.findFirst({ where: { id, deletedAt: null } });
+  const before = await prisma.productionEntry.findFirst({
+    where: { id, deletedAt: null },
+    include: { reworkEntries: { where: { deletedAt: null } } },
+  });
   if (!before) throw new NotFoundError('Entry not found');
   await getPlan(before.planId, req?.user);
 
@@ -903,17 +980,40 @@ export async function updateProductionEntry(id: string, data: Record<string, unk
 
   const plannedCases = (data.plannedCases as number) ?? before.plannedCases;
   const actualCases = (data.actualCases as number) ?? before.actualCases;
-  const { planId: _planId, ...rest } = data;
+  const goodCases = (data.goodCases as number) ?? before.goodCases;
+  const rejectCases = (data.rejectCases as number) ?? before.rejectCases;
+  const reworkByZone = data.reworkByZone as ReworkByZoneInput[] | undefined;
+  const reworkTotal =
+    reworkByZone !== undefined
+      ? sumReworkCases(reworkByZone)
+      : before.reworkEntries.reduce((s, r) => s + r.reworkCases, 0);
 
-  const entry = await prisma.productionEntry.update({
-    where: { id },
-    data: {
-      ...rest,
-      hourStart: data.hourStart ? new Date(data.hourStart as string) : undefined,
-      hourEnd: data.hourEnd ? new Date(data.hourEnd as string) : undefined,
-      lossCases: calcLoss(plannedCases, actualCases),
-    },
+  if (goodCases + rejectCases > actualCases + 0.0001) {
+    throw new ValidationError('Accepted + Hold cases cannot exceed Production cases');
+  }
+  if (rejectCases + reworkTotal > actualCases + 0.0001) {
+    throw new ValidationError('Hold + zone rework cases cannot exceed Production cases');
+  }
+
+  const { planId: _planId, reworkByZone: _rw, ...rest } = data;
+
+  const entry = await prisma.$transaction(async (tx) => {
+    await tx.productionEntry.update({
+      where: { id },
+      data: {
+        ...rest,
+        hourStart: data.hourStart ? new Date(data.hourStart as string) : undefined,
+        hourEnd: data.hourEnd ? new Date(data.hourEnd as string) : undefined,
+        lossCases: calcLoss(plannedCases, actualCases),
+      },
+    });
+    await syncReworkEntries(tx, id, reworkByZone);
+    return tx.productionEntry.findFirstOrThrow({
+      where: { id },
+      include: { reworkEntries: { where: { deletedAt: null } } },
+    });
   });
+
   await writeAuditLog({
     req,
     action: 'UPDATE',
@@ -934,10 +1034,17 @@ export async function deleteProductionEntry(id: string, req?: Request) {
     throw new ForbiddenError('Approved entries cannot be deleted by supervisors');
   }
 
-  await prisma.productionEntry.update({
-    where: { id },
-    data: { deletedAt: new Date() },
-  });
+  const now = new Date();
+  await prisma.$transaction([
+    prisma.reworkEntry.updateMany({
+      where: { productionEntryId: id, deletedAt: null },
+      data: { deletedAt: now },
+    }),
+    prisma.productionEntry.update({
+      where: { id },
+      data: { deletedAt: now },
+    }),
+  ]);
   await writeAuditLog({ req, action: 'DELETE', entity: 'ProductionEntry', entityId: id, before });
   return { message: 'Entry deleted' };
 }

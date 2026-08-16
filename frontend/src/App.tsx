@@ -44,6 +44,8 @@ import WasteEntriesPage from './pages/WasteEntriesPage';
 import WastageStatusPage from './pages/WastageStatusPage';
 import WasteReportPage from './pages/WasteReportPage';
 import SalesDashboardPage from './pages/SalesDashboardPage';
+import RftDashboardPage from './pages/RftDashboardPage';
+import RftEntriesPage from './pages/RftEntriesPage';
 import type { ReactNode } from 'react';
 
 function Protected({ children, path }: { children: ReactNode; path: string }) {
@@ -101,11 +103,13 @@ export default function App() {
         <Route path="waste-entries" element={<Protected path="/waste-entries"><WasteEntriesPage /></Protected>} />
         <Route path="wastage-status" element={<Protected path="/wastage-status"><WastageStatusPage /></Protected>} />
         <Route path="changeover-entries" element={<Protected path="/changeover-entries"><ChangeoverEntriesPage /></Protected>} />
+        <Route path="rft-entries" element={<Protected path="/rft-entries"><RftEntriesPage /></Protected>} />
         <Route path="shop-floor" element={<Navigate to="/production-entries" replace />} />
         <Route path="approvals" element={<Protected path="/approvals"><ApprovalsPage /></Protected>} />
         <Route path="monitoring" element={<Protected path="/monitoring"><MonitoringPage /></Protected>} />
         <Route path="downtime-analysis" element={<Protected path="/downtime-analysis"><DowntimeAnalysisPage /></Protected>} />
         <Route path="changeover-analysis" element={<Protected path="/changeover-analysis"><ChangeoverAnalysisPage /></Protected>} />
+        <Route path="rft" element={<Protected path="/rft"><RftDashboardPage /></Protected>} />
         <Route path="manpower-analysis" element={<Protected path="/manpower-analysis"><ManpowerAnalysisPage /></Protected>} />
         <Route path="waste-report" element={<Protected path="/waste-report"><WasteReportPage /></Protected>} />
         <Route path="reports" element={<Protected path="/reports"><ReportsPage /></Protected>} />

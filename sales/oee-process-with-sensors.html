@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>OEE Process with Sensors — LineSight / 1BY0 Solutions</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: #1a2332;
+      background: #fff;
+      font-size: 11px;
+      line-height: 1.45;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page { page-break-after: always; max-width: 182mm; margin: 0 auto; padding: 4mm 0 8mm; }
+    .page:last-child { page-break-after: auto; }
+    .brand {
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #2e8b7a;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    h1 {
+      font-size: 22px;
+      line-height: 1.2;
+      color: #0f2d3a;
+      margin-bottom: 6px;
+    }
+    .sub {
+      color: #5a6b75;
+      font-size: 12px;
+      margin-bottom: 14px;
+      max-width: 95%;
+    }
+    h2 {
+      font-size: 13px;
+      color: #0f2d3a;
+      border-left: 4px solid #2e8b7a;
+      padding-left: 8px;
+      margin: 14px 0 8px;
+    }
+    h3 { font-size: 11.5px; color: #1a2332; margin: 10px 0 4px; }
+    p { margin-bottom: 6px; color: #334155; }
+    .formula {
+      background: #0f2d3a;
+      color: #f4f7f8;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      margin: 10px 0 12px;
+      text-align: center;
+    }
+    .grid3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin: 8px 0 12px;
+    }
+    .card {
+      border: 1px solid #d7e0e6;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #f7fafb;
+    }
+    .card strong { display: block; color: #0f2d3a; margin-bottom: 3px; font-size: 11.5px; }
+    .card .f { font-size: 10px; color: #2e8b7a; font-weight: 600; margin-bottom: 4px; }
+    ul { margin: 4px 0 8px 16px; color: #334155; }
+    li { margin-bottom: 3px; }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin: 10px 0 12px;
+    }
+    .step {
+      background: #0f2d3a;
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px 6px;
+      text-align: center;
+      font-size: 10px;
+      min-height: 58px;
+    }
+    .step b { display: block; font-size: 11px; margin-bottom: 3px; color: #7ec8b8; }
+    .arrow-note {
+      text-align: center;
+      color: #64748b;
+      font-size: 10px;
+      margin-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 12px;
+      font-size: 10.5px;
+    }
+    th, td {
+      border: 1px solid #d7e0e6;
+      padding: 6px 7px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #0f2d3a; color: #fff; font-weight: 600; }
+    tr:nth-child(even) td { background: #f7fafb; }
+    .note {
+      background: #fff8e8;
+      border: 1px solid #f0d48a;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin: 10px 0;
+      color: #6b5420;
+    }
+    .map {
+      background: #eef8f5;
+      border: 1px solid #b7ddd4;
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin: 8px 0 12px;
+    }
+    .footer {
+      margin-top: 16px;
+      padding-top: 8px;
+      border-top: 1px solid #d7e0e6;
+      font-size: 9.5px;
+      color: #64748b;
+      display: flex;
+      justify-content: space-between;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PAGE 1 -->
+  <section class="page">
+    <div class="brand">1BY0 Solutions · LineSight OEE</div>
+    <h1>OEE Process with Sensors</h1>
+    <p class="sub">
+      How Overall Equipment Effectiveness is measured using machine sensors / PLC signals —
+      and how that process maps to LineSight for beverage filling lines.
+    </p>
+
+    <div class="formula">OEE = Availability × Performance × Quality</div>
+
+    <div class="grid3">
+      <div class="card">
+        <strong>1. Availability</strong>
+        <div class="f">Run Time ÷ Planned Time</div>
+        Is the line running when it should be? Losses = stops, breakdowns, waiting, changeover.
+      </div>
+      <div class="card">
+        <strong>2. Performance</strong>
+        <div class="f">(Ideal Cycle × Count) ÷ Run Time</div>
+        Is the line running at the designed speed? Losses = slow cycles, micro-stops.
+      </div>
+      <div class="card">
+        <strong>3. Quality</strong>
+        <div class="f">Good Count ÷ Total Count</div>
+        Are bottles/cases within specification? Losses = rejects, rework, scrap.
+      </div>
+    </div>
+
+    <h2>End-to-end process (sensor-based OEE)</h2>
+    <p class="arrow-note">Data flows left → right every second (or every machine cycle)</p>
+    <div class="flow">
+      <div class="step"><b>1. Sense</b>PLC / sensors on line &amp; machines</div>
+      <div class="step"><b>2. Edge</b>Gateway reads signals &amp; timestamps</div>
+      <div class="step"><b>3. Store</b>Events → MES / LineSight DB</div>
+      <div class="step"><b>4. Calculate</b>A · P · Q · OEE by hour/shift</div>
+      <div class="step"><b>5. Act</b>Dashboard, alerts, downtime reasons</div>
+    </div>
+
+    <h2>What each sensor / signal measures</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>OEE pillar</th>
+          <th>Typical sensors / signals</th>
+          <th>What you get</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Availability</strong></td>
+          <td>
+            Machine Run/Stop bit (PLC)<br/>
+            Stack light / status light tap<br/>
+            Current (amp) sensor<br/>
+            Vibration / proximity for idle vs run
+          </td>
+          <td>
+            Exact start/stop of downtime<br/>
+            Micro-stops under 1 minute<br/>
+            Run Time vs Planned Time
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Performance</strong></td>
+          <td>
+            Photo-eye / bottle counter<br/>
+            Cycle complete pulse from PLC<br/>
+            Filler / blower speed (BPM/CPH)
+          </td>
+          <td>
+            Actual cases or bottles per hour<br/>
+            Speed loss vs ideal rate<br/>
+            Short stops that hurt output
+          </td>
+        </tr>
+        <tr>
+          <td><strong>Quality</strong></td>
+          <td>
+            Reject chute counter<br/>
+            Vision inspection (fill/cap/label)<br/>
+            Checkweigher / leak detector
+          </td>
+          <td>
+            Good vs reject count<br/>
+            Defect type (optional)<br/>
+            Quality % for the hour/shift
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <strong>Important:</strong> Sensors give <em>when</em> and <em>how much</em>. Operators / supervisors still enter
+      <em>why</em> (downtime reason, changeover type). LineSight already stores reasons; sensors automate the times and counts.
+    </div>
+
+    <div class="footer">
+      <span>LineSight OEE · Sensor process guide</span>
+      <span>Page 1 of 2</span>
+    </div>
+  </section>
+
+  <!-- PAGE 2 -->
+  <section class="page">
+    <div class="brand">1BY0 Solutions · LineSight OEE</div>
+    <h1>From sensors to LineSight screens</h1>
+    <p class="sub">Recommended process for a beverage plant (Nakshatra-style filling line).</p>
+
+    <h2>Step-by-step implementation process</h2>
+    <ol style="margin: 0 0 10px 18px; color:#334155;">
+      <li><strong>Define Planned Time</strong> — from Work Order Planning (shift start/end, planned operating minutes).</li>
+      <li><strong>Wire Availability signals</strong> — Run/Stop from main line PLC or current sensor on critical machines (Filler, Capper, Blow Mould).</li>
+      <li><strong>Wire Performance counters</strong> — case/bottle count at outfeed; set Ideal Cycle Time / Cases per Hour in Production Targets.</li>
+      <li><strong>Wire Quality counters</strong> — good count + reject count (or total − rejects).</li>
+      <li><strong>Edge gateway</strong> — poll every 1 second; push events to API / database.</li>
+      <li><strong>Map to LineSight</strong> — auto-create hourly Production Entries + Downtime start/end; operator confirms reason.</li>
+      <li><strong>Validate 2 weeks</strong> — compare sensor OEE vs manual Production Entries until they match.</li>
+      <li><strong>Go live</strong> — dashboards (Plant, Line-wise, Day/Week OEE) use live data; keep manual entry as backup.</li>
+    </ol>
+
+    <h2>How it maps to your current LineSight app</h2>
+    <div class="map">
+      <div class="two">
+        <div>
+          <h3>Today (manual)</h3>
+          <ul>
+            <li>Work Order Planning → date, line, shift, times</li>
+            <li>Production Entries → hourly planned / actual / good / loss</li>
+            <li>Downtime Entries → start, end, machine, reason</li>
+            <li>Changeover Details → type, from/to SKU, minutes</li>
+            <li>Dashboards calculate A × P × Q</li>
+          </ul>
+        </div>
+        <div>
+          <h3>With sensors (future / hybrid)</h3>
+          <ul>
+            <li>Same work orders (planned time stays master)</li>
+            <li>Counters auto-fill actual / good / reject</li>
+            <li>Run/Stop auto-fills downtime windows</li>
+            <li>Operator only picks reason / category</li>
+            <li>Same OEE formulas — cleaner data</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2>Simple example (1 hour on LINE-01)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Input</th>
+          <th>Value</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Planned hour</td><td>60 min</td><td>Work order</td></tr>
+        <tr><td>Downtime (unplanned)</td><td>10 min</td><td>Run/Stop sensor + reason code</td></tr>
+        <tr><td>Run Time</td><td>50 min</td><td>60 − 10</td></tr>
+        <tr><td>Ideal rate</td><td>180 cases/hour</td><td>SKU / Production Target</td></tr>
+        <tr><td>Actual cases</td><td>135</td><td>Counter sensor</td></tr>
+        <tr><td>Good cases</td><td>130</td><td>Counter − rejects / vision</td></tr>
+        <tr><td>Availability</td><td>50 ÷ 60 = <strong>83.3%</strong></td><td>Formula</td></tr>
+        <tr><td>Performance</td><td>(180×(50/60)) vs 135 → <strong>~90%</strong>*</td><td>Formula</td></tr>
+        <tr><td>Quality</td><td>130 ÷ 135 = <strong>96.3%</strong></td><td>Formula</td></tr>
+        <tr><td>OEE</td><td>0.833 × 0.90 × 0.963 ≈ <strong>72%</strong></td><td>A × P × Q</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:9.5px;color:#64748b;">*Performance uses Ideal Cycle Time × Total Count ÷ Run Time (LineSight uses the same pillar logic as Plant / Line / Day OEE).</p>
+
+    <h2>Recommended sensor set for a filling line (starter)</h2>
+    <ul>
+      <li><strong>Must-have:</strong> Line Run/Stop (PLC or current sensor) · Outfeed case/bottle counter · Reject counter</li>
+      <li><strong>Nice-to-have:</strong> Per-machine status (Filler, Capper, Labeller) · Vision for quality · Changeover detection from recipe/SKU change</li>
+      <li><strong>Always keep:</strong> Operator downtime reason entry in LineSight (sensors cannot know “why” alone)</li>
+    </ul>
+
+    <div class="note">
+      <strong>Practical tip:</strong> Start with <em>one line</em> and <em>Availability + count</em> only. Add quality sensors after counts match manual Production Entries for 2 weeks.
+    </div>
+
+    <div class="footer">
+      <span>1BY0 Solutions · For internal training / customer explanation · Not a substitute for site PLC design</span>
+      <span>Page 2 of 2</span>
+    </div>
+  </section>
+
+</body>
+</html>

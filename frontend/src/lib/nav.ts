@@ -32,6 +32,7 @@ import {
   CalendarDays,
   CalendarRange,
   ShoppingCart,
+  ShieldCheck,
 } from 'lucide-react';
 import type { Role } from '../store';
 
@@ -67,10 +68,12 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Wastage Entries', path: '/waste-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: PackageX },
   { label: 'Wastage Status', path: '/wastage-status', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: ClipboardList },
   { label: 'Changeover Details', path: '/changeover-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: ArrowLeftRight },
+  { label: 'RFT Entries', path: '/rft-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: ShieldCheck },
   { label: 'Approvals', path: '/approvals', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Shop Floor', icon: BadgeCheck },
   { label: 'Monitoring', path: '/monitoring', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: Activity },
   { label: 'Downtime Analysis', path: '/downtime-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Analytics', icon: TimerOff },
   { label: 'Changeover Analysis', path: '/changeover-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Analytics', icon: ArrowLeftRight },
+  { label: 'RFT Dashboard', path: '/rft', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: ShieldCheck },
   { label: 'Manpower Analysis', path: '/manpower-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: UsersRound },
   { label: 'Wastage Report', path: '/waste-report', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: Recycle },
   { label: 'Reports', path: '/reports', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: FileBarChart2 },
@@ -124,6 +127,18 @@ export const SEARCH_KPIS: SearchKpi[] = [
     hint: 'Good Count ÷ Total Count',
     path: '/oee',
     keywords: ['quality', 'q', 'good cases', 'reject', 'rejects'],
+  },
+  {
+    label: 'RFT %',
+    hint: 'First Time Good ÷ Total Produced',
+    path: '/rft',
+    keywords: ['rft', 'right first time', 'first time good', 'reject area', 'filling reject', 'pareto'],
+  },
+  {
+    label: 'RFT Entries',
+    hint: 'Area-wise reject quantity entry',
+    path: '/rft-entries',
+    keywords: ['rft entry', 'reject qty', 'filling reject', 'capping reject', 'label reject'],
   },
   {
     label: 'Planned Cases',

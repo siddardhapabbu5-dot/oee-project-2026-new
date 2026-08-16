@@ -10,6 +10,7 @@ import * as dashboardService from '../services/dashboard.service.js';
 import * as reportService from '../services/report.service.js';
 import * as wasteService from '../services/waste.service.js';
 import * as salesService from '../services/sales.service.js';
+import * as rftService from '../services/rft.service.js';
 import {
   loginSchema,
   changePasswordSchema,
@@ -36,6 +37,7 @@ import {
   wasteEntrySchema,
   wasteEntryUpdateSchema,
   salesEntrySchema,
+  rftEntrySchema,
   shiftClosingSchema,
   approvalSchema,
   settingSchema,
@@ -590,6 +592,51 @@ router.get('/dashboard/plan-vs-actual/export/excel', authenticate, asyncHandler(
     `attachment; filename=plan-vs-actual-${(req.query.from as string) || 'from'}-${(req.query.to as string) || 'to'}.xlsx`,
   );
   res.send(buffer);
+}));
+
+router.get('/dashboard/rft', authenticate, asyncHandler(async (req, res) => {
+  success(
+    res,
+    await rftService.getRftDashboard(req.user, {
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      lineId: req.query.lineId as string | undefined,
+      shiftId: req.query.shiftId as string | undefined,
+    }),
+  );
+}));
+
+router.get('/reject-areas', authenticate, asyncHandler(async (_req, res) => {
+  success(res, await rftService.listRejectAreas());
+}));
+
+router.get('/rft-entries', authenticate, asyncHandler(async (req, res) => {
+  success(
+    res,
+    await rftService.listRftEntries(req.user, {
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      lineId: req.query.lineId as string | undefined,
+      shiftId: req.query.shiftId as string | undefined,
+      productId: req.query.productId as string | undefined,
+    }),
+  );
+}));
+
+router.get('/rft-entries/:id', authenticate, asyncHandler(async (req, res) => {
+  success(res, await rftService.getRftEntry(idParam(req), req.user));
+}));
+
+router.post('/rft-entries', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'), asyncHandler(async (req, res) => {
+  success(res, await rftService.createRftEntry(rftEntrySchema.parse(req.body), req), 201);
+}));
+
+router.patch('/rft-entries/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'), asyncHandler(async (req, res) => {
+  success(res, await rftService.updateRftEntry(idParam(req), rftEntrySchema.partial().parse(req.body), req));
+}));
+
+router.delete('/rft-entries/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'), asyncHandler(async (req, res) => {
+  success(res, await rftService.deleteRftEntry(idParam(req), req));
 }));
 
 router.get('/dashboard/changeover-analysis', authenticate, asyncHandler(async (req, res) => {

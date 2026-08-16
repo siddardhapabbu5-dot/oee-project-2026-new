@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>OEE Project — Management Brief | Nakshatra · LineSight</title>
+  <style>
+    @page { size: A4; margin: 10mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      color: #1a2332;
+      background: #fff;
+      font-size: 10.5px;
+      line-height: 1.42;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      break-after: page;
+      page-break-after: always;
+      width: 100%;
+      position: relative;
+      padding-bottom: 16px;
+      overflow: hidden;
+    }
+    .page:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+
+    /* Cover — exactly one printable page (A4 − margins ≈ 277mm) */
+    .page.cover-page {
+      padding-bottom: 0;
+      height: 277mm;
+      max-height: 277mm;
+    }
+    .cover {
+      background: linear-gradient(145deg, #0b2430 0%, #0f3d3a 55%, #1a5c52 100%);
+      color: #f4f7f8;
+      border-radius: 14px;
+      padding: 22mm 14mm 14mm;
+      height: 100%;
+      max-height: 277mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      position: relative;
+    }
+    .cover::before {
+      content: "";
+      position: absolute;
+      right: -40px; top: -40px;
+      width: 220px; height: 220px;
+      border-radius: 50%;
+      background: rgba(126, 200, 184, 0.12);
+    }
+    .cover::after {
+      content: "";
+      position: absolute;
+      left: -60px; bottom: 40px;
+      width: 180px; height: 180px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.04);
+    }
+    .eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #7ec8b8;
+      font-weight: 700;
+      margin-bottom: 14px;
+      position: relative; z-index: 1;
+    }
+    .cover h1 {
+      font-size: 32px;
+      line-height: 1.15;
+      font-weight: 700;
+      max-width: 85%;
+      position: relative; z-index: 1;
+    }
+    .cover .lead {
+      margin-top: 14px;
+      font-size: 14px;
+      color: #c5d4db;
+      max-width: 78%;
+      line-height: 1.5;
+      position: relative; z-index: 1;
+    }
+    .meta-row {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-top: 22px;
+      position: relative; z-index: 1;
+    }
+    .pill {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.18);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      color: #e8f4f1;
+    }
+    .cover-foot {
+      position: relative; z-index: 1;
+      border-top: 1px solid rgba(255,255,255,0.15);
+      padding-top: 14px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #9db5b0;
+    }
+
+    .brand {
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #2e8b7a;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    h1.page-title {
+      font-size: 20px;
+      color: #0f2d3a;
+      margin-bottom: 4px;
+    }
+    .sub {
+      color: #5a6b75;
+      font-size: 11.5px;
+      margin-bottom: 12px;
+    }
+    h2 {
+      font-size: 12.5px;
+      color: #0f2d3a;
+      border-left: 4px solid #2e8b7a;
+      padding-left: 8px;
+      margin: 12px 0 7px;
+    }
+    h3 { font-size: 11px; color: #0f2d3a; margin: 8px 0 4px; }
+    p { color: #334155; margin-bottom: 6px; }
+    ul, ol { margin: 2px 0 8px 16px; color: #334155; }
+    li { margin-bottom: 2px; }
+
+    .formula {
+      background: #0f2d3a;
+      color: #fff;
+      text-align: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      margin: 8px 0 10px;
+      letter-spacing: 0.02em;
+    }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .grid4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 7px; }
+    .grid5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .grid6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+
+    .card {
+      border: 1px solid #d7e0e6;
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: #f7fafb;
+    }
+    .card.dark {
+      background: #0f2d3a;
+      color: #e8f4f1;
+      border-color: #0f2d3a;
+    }
+    .card.teal {
+      background: #eef8f5;
+      border-color: #b7ddd4;
+    }
+    .card.amber {
+      background: #fff8e8;
+      border-color: #f0d48a;
+    }
+    .card strong { display: block; color: #0f2d3a; margin-bottom: 2px; font-size: 11px; }
+    .card.dark strong { color: #7ec8b8; }
+    .card .tag {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: #2e8b7a;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 3px;
+    }
+    .kpi {
+      text-align: center;
+      padding: 10px 6px;
+    }
+    .kpi .v { font-size: 18px; font-weight: 700; color: #0f2d3a; }
+    .kpi .l { font-size: 9.5px; color: #64748b; margin-top: 2px; }
+
+    .step {
+      background: #0f2d3a;
+      color: #fff;
+      border-radius: 9px;
+      padding: 8px 5px;
+      text-align: center;
+      font-size: 9.5px;
+      min-height: 52px;
+    }
+    .step b { display: block; color: #7ec8b8; font-size: 10.5px; margin-bottom: 2px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 6px 0 10px;
+      font-size: 10px;
+    }
+    th, td {
+      border: 1px solid #d7e0e6;
+      padding: 5px 6px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #0f2d3a; color: #fff; font-weight: 600; }
+    tr:nth-child(even) td { background: #f7fafb; }
+
+    .callout {
+      border-radius: 10px;
+      padding: 9px 11px;
+      margin: 8px 0;
+      background: #eef8f5;
+      border: 1px solid #b7ddd4;
+      color: #1a433c;
+    }
+    .callout.warn {
+      background: #fff8e8;
+      border-color: #f0d48a;
+      color: #6b5420;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 6px;
+      margin-top: 12px;
+    }
+
+    .cycle {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin: 6px 0 8px;
+    }
+    .cycle span {
+      background: #0f2d3a;
+      color: #fff;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 9.5px;
+      font-weight: 600;
+    }
+    .cycle span.soft { background: #2e8b7a; }
+  </style>
+</head>
+<body>
+
+  <!-- 1 COVER -->
+  <section class="page cover-page">
+    <div class="cover">
+      <div>
+        <div class="eyebrow">1BY0 Solutions · LineSight OEE</div>
+        <h1>OEE Project Management Brief</h1>
+        <p class="lead">
+          Digital production monitoring for Nakshatra water bottle filling —
+          combining OEE, TPM, 4M, Right First Time (RFT) and Kaizen into one
+          management improvement system.
+        </p>
+        <div class="meta-row">
+          <span class="pill">Plant: Nakshatra</span>
+          <span class="pill">Line-01 · Filling</span>
+          <span class="pill">90 BPM · 24 btl/case</span>
+          <span class="pill">Target 225 cases/hour</span>
+        </div>
+      </div>
+      <div class="cover-foot">
+        <span>Confidential — Management Presentation</span>
+        <span>Measure → Identify → Improve → Sustain</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 EXEC + WHY + OEE -->
+  <section class="page">
+    <div class="brand">LineSight OEE · Management Brief</div>
+    <h1 class="page-title">1. Executive Summary &amp; Why OEE</h1>
+    <p class="sub">One digital system to monitor production, downtime, quality and OEE — then drive loss reduction.</p>
+
+    <div class="grid3">
+      <div class="card teal">
+        <div class="tag">Objective</div>
+        Capture hourly production + downtime, calculate OEE automatically, and give management loss visibility by hour, machine, SKU, reason and shift.
+      </div>
+      <div class="card teal">
+        <div class="tag">Problem today</div>
+        Data exists in Excel, but losses are hard to analyse quickly. Manual reporting delays visibility and introduces formula / entry errors.
+      </div>
+      <div class="card teal">
+        <div class="tag">Outcome</div>
+        Faster decisions, clearer accountability, reduced chronic losses and better line utilisation — with one KPI language across shifts.
+      </div>
+    </div>
+
+    <div class="formula">OEE = Availability × Performance × Quality</div>
+
+    <div class="grid3">
+      <div class="card">
+        <strong>Availability</strong>
+        <div class="tag">Operating ÷ Planned Time</div>
+        Was the line running when it should? Losses: breakdowns, utilities, manpower, material, planned stops.
+      </div>
+      <div class="card">
+        <strong>Performance</strong>
+        <div class="tag">Actual vs Ideal Output</div>
+        Did it run at expected speed? Losses: speed loss, minor stops, adjustments, process variation.
+      </div>
+      <div class="card">
+        <strong>Quality</strong>
+        <div class="tag">Good ÷ Total Output</div>
+        How much good product? Losses: fill, cap, bottle, label, coding, packaging defects.
+      </div>
+    </div>
+
+    <h2>Line-01 reference (theoretical target)</h2>
+    <div class="grid4">
+      <div class="card kpi"><div class="v">90</div><div class="l">BPM filler</div></div>
+      <div class="card kpi"><div class="v">24</div><div class="l">Bottles / case</div></div>
+      <div class="card kpi"><div class="v">225</div><div class="l">Cases / hour</div></div>
+      <div class="card kpi"><div class="v">08–18</div><div class="l">Shift window</div></div>
+    </div>
+    <p>90 BPM × 60 = 5,400 bottles/hour ÷ 24 = <strong>225 cases/hour</strong>. Lunch and approved planned stops must follow the agreed OEE policy so the denominator is consistent for management.</p>
+
+    <div class="callout">
+      <strong>Management message:</strong> Move from reporting numbers to <em>managing losses</em>. OEE tells us where we lose; improvement systems (TPM / Kaizen / RFT) remove why we lose.
+    </div>
+
+    <div class="footer"><span>Nakshatra · LineSight OEE</span><span>Page 2</span></div>
+  </section>
+
+  <!-- 3 SCOPE + FLOW + DASHBOARD -->
+  <section class="page">
+    <div class="brand">LineSight OEE · Management Brief</div>
+    <h1 class="page-title">2. Digital OEE System — Scope &amp; Operating Loop</h1>
+    <p class="sub">From shop floor capture to management action.</p>
+
+    <h2>Project scope</h2>
+    <div class="grid2">
+      <div class="card">
+        <strong>Masters &amp; Plan</strong>
+        Plant, Line, Machine, SKU, Pack Size, Rated Speed, Shift, Users · Hourly target, SKU, planned quantity, schedule.
+      </div>
+      <div class="card">
+        <strong>Shop floor capture</strong>
+        Hourly target / actual / loss / running time · Downtime start–end, category, reason, machine · Quality good / reject / rework.
+      </div>
+      <div class="card">
+        <strong>Analysis</strong>
+        Shift / day / line / machine / loss dashboards · Pareto of downtime minutes · Target vs Actual vs Loss.
+      </div>
+      <div class="card">
+        <strong>Outputs</strong>
+        Excel / PDF reports · Role-based access (Operator → Supervisor → Admin / Management) · Drill-down Plant → Line → Machine → SKU → Hour → Reason.
+      </div>
+    </div>
+
+    <h2>Closed-loop data flow</h2>
+    <div class="grid6">
+      <div class="step"><b>1. Plan</b>Hourly target &amp; SKU</div>
+      <div class="step"><b>2. Capture</b>Production &amp; downtime</div>
+      <div class="step"><b>3. Validate</b>Time, qty, reason</div>
+      <div class="step"><b>4. Calculate</b>A × P × Q</div>
+      <div class="step"><b>5. Analyze</b>Loss &amp; trend</div>
+      <div class="step"><b>6. Act</b>Corrective action</div>
+    </div>
+
+    <h2>Hourly visibility (example)</h2>
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Target</th><th>Actual</th><th>Loss</th><th>Typical reason</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>08–09</td><td>225</td><td>59</td><td>166</td><td>Startup</td></tr>
+        <tr><td>09–10</td><td>225</td><td>100</td><td>125</td><td>Breakdown</td></tr>
+        <tr><td>10–11</td><td>225</td><td>170</td><td>55</td><td>Changeover</td></tr>
+        <tr><td>11–12</td><td>225</td><td>200</td><td>25</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p>Management can see immediately where target was missed and drill into the reason — without waiting for end-of-day Excel.</p>
+
+    <h2>Ownership</h2>
+    <div class="grid3">
+      <div class="card dark"><strong>Operator</strong>Enter production, downtime, quality</div>
+      <div class="card dark"><strong>Supervisor</strong>Validate, review losses, shift actions</div>
+      <div class="card dark"><strong>Management</strong>Masters, KPI review, improvement decisions</div>
+    </div>
+
+    <div class="footer"><span>Nakshatra · LineSight OEE</span><span>Page 3</span></div>
+  </section>
+
+  <!-- 4 TPM + 4M -->
+  <section class="page">
+    <div class="brand">LineSight OEE · Management Brief</div>
+    <h1 class="page-title">3. TPM &amp; 4M — From Losses to Projects</h1>
+    <p class="sub">OEE identifies losses; TPM converts them into structured improvement projects.</p>
+
+    <div class="callout">
+      <strong>OEE + TPM:</strong> OEE = KPI to measure effectiveness. TPM = system to eliminate equipment and process losses (zero breakdowns, zero defects, zero minor stops, operator ownership).
+    </div>
+
+    <h2>4M root-cause classification</h2>
+    <div class="grid4">
+      <div class="card"><div class="tag">Man</div><strong>People</strong>Operator skill, training, manpower, handling variation</div>
+      <div class="card"><div class="tag">Machine</div><strong>Equipment</strong>Filler, capper, conveyor, electrical, mechanical, sensors</div>
+      <div class="card"><div class="tag">Material</div><strong>Inputs</strong>Preform, bottle, cap, label, water, packaging quality</div>
+      <div class="card"><div class="tag">Method</div><strong>Process</strong>SOP, settings, changeover, inspection, startup sequence</div>
+    </div>
+    <p>Classify every recurring loss → verify with 5-Why / evidence → remove the root cause (not only the symptom).</p>
+
+    <h2>Proposed TPM projects (Line-01)</h2>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Project</th><th>OEE link</th><th>Focus</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td>Filler breakdown reduction</td><td>Availability</td><td>Gearbox, motor, sensor, mechanical</td></tr>
+        <tr><td>2</td><td>Bottle damage reduction</td><td>Quality + Performance</td><td>Conveyor / guide / handling</td></tr>
+        <tr><td>3</td><td>Cap defect reduction</td><td>Quality</td><td>Capper settings &amp; inspection</td></tr>
+        <tr><td>4</td><td>Startup loss reduction</td><td>Availability</td><td>Startup checklist &amp; presets</td></tr>
+        <tr><td>5</td><td>Changeover time reduction</td><td>Availability</td><td>SMED + checklist</td></tr>
+        <tr><td>6</td><td>Minor stop elimination</td><td>Performance</td><td>Pareto short stops + PM</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Improvement cycle</h2>
+    <div class="cycle">
+      <span>Measure OEE</span>
+      <span class="soft">Pareto</span>
+      <span>4M + 5 Why</span>
+      <span class="soft">TPM / Kaizen</span>
+      <span>Standardize</span>
+      <span class="soft">Verify OEE</span>
+    </div>
+    <p><strong>Recommended:</strong> every month pick top 3 losses and launch focused TPM projects. Track Before OEE → Countermeasure → After OEE → Sustenance.</p>
+
+    <div class="footer"><span>Nakshatra · LineSight OEE</span><span>Page 4</span></div>
+  </section>
+
+  <!-- 5 RFT -->
+  <section class="page">
+    <div class="brand">LineSight OEE · Management Brief</div>
+    <h1 class="page-title">4. Right First Time (RFT) — Quality that protects OEE</h1>
+    <p class="sub">Make product correct the first time — without rework, repair or repeat processing.</p>
+
+    <div class="grid3">
+      <div class="card dark"><strong>RFT</strong>First-time quality performance</div>
+      <div class="card dark"><strong>OEE link</strong>Improves the Quality pillar</div>
+      <div class="card dark"><strong>Focus</strong>Prevention, not detection after the fact</div>
+    </div>
+
+    <div class="formula">RFT % = First-Time-Good Quantity ÷ Total Produced × 100</div>
+
+    <div class="grid3">
+      <div class="card kpi"><div class="v">1,000</div><div class="l">Total produced (cases)</div></div>
+      <div class="card kpi"><div class="v">980</div><div class="l">First-time-good</div></div>
+      <div class="card kpi"><div class="v">98%</div><div class="l">RFT</div></div>
+    </div>
+    <p>If 20 cases need rework before acceptance, they are <em>not</em> Right First Time. Define plant rules for rework / reject before using RFT as a KPI.</p>
+
+    <h2>How OEE + RFT + TPM work together</h2>
+    <div class="grid3">
+      <div class="card teal"><strong>OEE</strong>Measures overall equipment effectiveness and major losses</div>
+      <div class="card teal"><strong>RFT</strong>Measures whether product was made correctly first time</div>
+      <div class="card teal"><strong>TPM / 4M</strong>Eliminates root causes of defects and stops</div>
+    </div>
+
+    <h2>RFT projects for water filling</h2>
+    <table>
+      <thead><tr><th>Area</th><th>Goal</th><th>Levers</th></tr></thead>
+      <tbody>
+        <tr><td>Filling accuracy</td><td>Reduce under/overfill</td><td>Valve, calibration, settings</td></tr>
+        <tr><td>Cap quality</td><td>Loose / damaged caps</td><td>Torque, alignment, cap supply</td></tr>
+        <tr><td>Bottle quality</td><td>Damage / deformation</td><td>Conveyor, guides, material</td></tr>
+        <tr><td>Label &amp; coding</td><td>Correct label / date</td><td>Changeover check + first-piece OK</td></tr>
+        <tr><td>Packaging</td><td>Pack / shrink defects</td><td>Count, inspection, carton</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      Combined cycle for management: <strong>OEE Pareto → RFT defect → 4M analysis → countermeasure → verify RFT &amp; OEE</strong>
+    </div>
+
+    <div class="footer"><span>Nakshatra · LineSight OEE</span><span>Page 5</span></div>
+  </section>
+
+  <!-- 6 KAIZEN -->
+  <section class="page">
+    <div class="brand">LineSight OEE · Management Brief</div>
+    <h1 class="page-title">5. Manufacturing Kaizen — Continuous Improvement</h1>
+    <p class="sub">Small, practical, daily improvements with owners, targets and before/after KPIs.</p>
+
+    <div class="grid4">
+      <div class="card"><div class="tag">Kaizen</div><strong>Continuous improvement</strong></div>
+      <div class="card"><div class="tag">Focus</div><strong>Small changes, every day</strong></div>
+      <div class="card"><div class="tag">People</div><strong>Operator + Supervisor + Eng.</strong></div>
+      <div class="card"><div class="tag">Result</div><strong>Safety · Quality · Delivery · Cost</strong></div>
+    </div>
+
+    <h2>PDCA method</h2>
+    <div class="grid4">
+      <div class="step"><b>PLAN</b>Problem, target, root cause</div>
+      <div class="step"><b>DO</b>Implement countermeasure</div>
+      <div class="step"><b>CHECK</b>Before vs after KPI</div>
+      <div class="step"><b>ACT</b>Standardize &amp; sustain</div>
+    </div>
+
+    <h2>Priority Kaizen slate (examples)</h2>
+    <table>
+      <thead><tr><th>Kaizen</th><th>From → To</th><th>KPI</th></tr></thead>
+      <tbody>
+        <tr><td>Startup loss</td><td>60 → 30 min</td><td>Availability</td></tr>
+        <tr><td>SKU changeover</td><td>40 → 20 min</td><td>Availability</td></tr>
+        <tr><td>Minor stops</td><td>120 → 60 min</td><td>Performance</td></tr>
+        <tr><td>Bottle damage</td><td>3% → &lt;1%</td><td>RFT / Quality</td></tr>
+        <tr><td>Material waste</td><td>Baseline → target</td><td>Cost / Quality</td></tr>
+        <tr><td>Stable filler speed</td><td>Actual → standard</td><td>Performance</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Project tracking format (use monthly)</h2>
+    <table>
+      <thead><tr><th>Project</th><th>Before</th><th>4M</th><th>Action</th><th>After target</th><th>KPI</th></tr></thead>
+      <tbody>
+        <tr><td>Bottle damage</td><td>3.0%</td><td>Machine</td><td>Guide alignment + PM</td><td>&lt;1%</td><td>RFT</td></tr>
+        <tr><td>Startup loss</td><td>60 min</td><td>Method</td><td>Checklist + presets</td><td>&lt;30 min</td><td>Availability</td></tr>
+        <tr><td>Minor stops</td><td>120 min</td><td>Machine</td><td>Sensor PM / standard</td><td>&lt;60 min</td><td>Performance</td></tr>
+        <tr><td>Cap defects</td><td>2.0%</td><td>Material</td><td>Cap spec + control</td><td>&lt;0.5%</td><td>RFT / Quality</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Governance cadence</h2>
+    <div class="grid4">
+      <div class="card dark"><strong>Daily</strong>Top loss + immediate action</div>
+      <div class="card dark"><strong>Weekly</strong>Open projects + owners</div>
+      <div class="card dark"><strong>Monthly</strong>Before / after KPI close</div>
+      <div class="card dark"><strong>Quarterly</strong>Standardize &amp; replicate</div>
+    </div>
+
+    <div class="footer"><span>Nakshatra · LineSight OEE</span><span>Page 6</span></div>
+  </section>
+
+  <!-- 7 ROADMAP + DECISIONS -->
+  <section class="page">
+    <div class="brand">LineSight OEE · Management Brief</div>
+    <h1 class="page-title">6. Roadmap, Benefits &amp; Decisions Required</h1>
+    <p class="sub">What management needs to approve to make Line-01 pilot successful.</p>
+
+    <h2>Implementation roadmap</h2>
+    <div class="grid3">
+      <div class="card"><div class="tag">Phase 1–2</div><strong>Masters + Plan + Hourly entry</strong>OEE definitions, production plan, hourly capture</div>
+      <div class="card"><div class="tag">Phase 3–4</div><strong>Downtime + Auto OEE</strong>Reason master, calculation &amp; validation</div>
+      <div class="card"><div class="tag">Phase 5–6</div><strong>Dashboard + Pilot</strong>Reports, roles · Line-01 pilot → standardize → expand</div>
+    </div>
+
+    <h2>Expected business benefits</h2>
+    <ul>
+      <li>Real-time visibility of production and downtime</li>
+      <li>Less manual Excel work and fewer calculation errors</li>
+      <li>Faster identification of chronic losses</li>
+      <li>Stronger accountability for downtime reasons</li>
+      <li>Better planning and target achievement</li>
+      <li>History for MTBF, MTTR, Pareto and continuous improvement</li>
+      <li>One common KPI language across shifts and lines</li>
+    </ul>
+
+    <h2>Decisions required from management</h2>
+    <div class="grid2">
+      <div class="card amber"><strong>1. OEE policy</strong>Planned Production Time; how to treat startup, changeover, lunch</div>
+      <div class="card amber"><strong>2. Standard masters</strong>Downtime, quality and production-loss reason lists</div>
+      <div class="card amber"><strong>3. Data ownership</strong>Operator / Supervisor / Admin responsibilities</div>
+      <div class="card amber"><strong>4. Review rhythm</strong>Hourly ops review + shift/day management KPI review</div>
+      <div class="card amber"><strong>5. Pilot approval</strong>Confirm Line-01 pilot scope and success criteria</div>
+      <div class="card amber"><strong>6. Rollout plan</strong>When to expand to other lines after standardisation</div>
+    </div>
+
+    <div class="callout">
+      <strong>Integrated framework:</strong>
+      OEE (measure) → Pareto (select) → 4M + 5 Why (analyse) → Kaizen (improve) → TPM (prevent) → RFT (confirm quality) → Standardize (sustain).
+    </div>
+
+    <div class="footer"><span>Nakshatra · LineSight OEE</span><span>Page 7</span></div>
+  </section>
+
+  <!-- 8 CLOSE -->
+  <section class="page">
+    <div class="brand">LineSight OEE · Management Brief</div>
+    <h1 class="page-title">7. Final Management Message</h1>
+    <p class="sub">The objective is not only to calculate OEE — it is to use OEE to improve the line.</p>
+
+    <div class="formula" style="font-size:14px; padding:14px;">
+      Measure → Identify → Analyze → Improve → Standardize → Sustain
+    </div>
+
+    <div class="grid2" style="margin-top:12px;">
+      <div class="card dark" style="padding:14px;">
+        <strong style="font-size:13px; margin-bottom:8px;">What each system does</strong>
+        <ul style="color:#d7e8e3; margin-left:14px;">
+          <li><strong style="color:#7ec8b8;">OEE</strong> — measures performance</li>
+          <li><strong style="color:#7ec8b8;">RFT</strong> — protects first-time quality</li>
+          <li><strong style="color:#7ec8b8;">4M + 5 Why</strong> — finds root causes</li>
+          <li><strong style="color:#7ec8b8;">TPM</strong> — prevents recurrence</li>
+          <li><strong style="color:#7ec8b8;">Kaizen</strong> — creates continuous improvement</li>
+        </ul>
+      </div>
+      <div class="card teal" style="padding:14px;">
+        <strong style="font-size:13px; margin-bottom:8px;">Ask of management</strong>
+        <ul style="margin-left:14px;">
+          <li>Approve Line-01 digital OEE pilot</li>
+          <li>Lock OEE / RFT definitions and masters</li>
+          <li>Assign owners for top 3 monthly losses</li>
+          <li>Review Before / After KPIs every month</li>
+          <li>Replicate wins across lines and SKUs</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="margin-top:28px; text-align:center; padding:28px 16px; background:linear-gradient(145deg,#0b2430,#1a5c52); color:#fff; border-radius:14px;">
+      <div style="font-size:11px; letter-spacing:0.18em; text-transform:uppercase; color:#7ec8b8; font-weight:700;">Thank you</div>
+      <div style="font-size:22px; font-weight:700; margin-top:8px;">Sustainable improvement — not only a better OEE number</div>
+      <div style="margin-top:12px; font-size:12px; color:#c5d4db;">
+        Plant: Nakshatra · Line-01 Water Bottle Filling · LineSight by 1BY0 Solutions
+      </div>
+    </div>
+
+    <div class="footer"><span>Nakshatra · LineSight OEE · Confidential</span><span>Page 8</span></div>
+  </section>
+
+</body>
+</html>

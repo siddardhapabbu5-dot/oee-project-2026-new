@@ -28,6 +28,16 @@ enum EntryStatus {
   REJECTED
 }
 
+/** Process zones for Right-First-Time rework tracking */
+enum ReworkZone {
+  BLOW_MOULD
+  FILLER
+  CAPPER
+  LABEL
+  PACKAGING
+  OTHER
+}
+
 enum ChangeoverKind {
   PLANNED
   UNPLANNED
@@ -81,6 +91,7 @@ model User {
   manpowerEntries    ManpowerEntry[]
   wasteEntries       WasteEntry[]
   salesEntries       SalesEntry[]
+  rftEntries         RftEntry[]          @relation("RftEntryCreator")
   shiftClosings      ShiftClosing[]
   notifications      Notification[]
   auditLogs          AuditLog[]          @relation("AuditActor")
@@ -109,6 +120,7 @@ model Plant {
   lines           ProductionLine[]
   productionPlans ProductionPlan[]
   salesEntries    SalesEntry[]
+  rftEntries      RftEntry[]
 
   @@index([deletedAt])
   @@map("plants")
@@ -134,6 +146,7 @@ model ProductionLine {
   productionPlans ProductionPlan[]
   changeoverEntries ChangeoverEntry[]
   wasteEntries    WasteEntry[]
+  rftEntries      RftEntry[]
 
   @@index([plantId])
   @@index([supervisorId])
@@ -180,6 +193,7 @@ model Product {
   changeoversFrom    ChangeoverEntry[] @relation("ChangeoverFrom")
   changeoversTo      ChangeoverEntry[] @relation("ChangeoverTo")
   salesEntries       SalesEntry[]
+  rftEntries         RftEntry[]
 
   @@index([brandId])
   @@index([deletedAt])
@@ -208,6 +222,7 @@ model Sku {
   changeoversFrom ChangeoverEntry[] @relation("ChangeoverFromSku")
   changeoversTo   ChangeoverEntry[] @relation("ChangeoverToSku")
   salesEntries    SalesEntry[]
+  rftEntries      RftEntry[]
 
   @@index([productId])
   @@index([deletedAt])
@@ -299,6 +314,7 @@ model Shift {
   productionPlans ProductionPlan[]
   shiftClosings   ShiftClosing[]
   wasteEntries    WasteEntry[]
+  rftEntries      RftEntry[]
 
   @@map("shifts")
 }
@@ -370,9 +386,10 @@ model ProductionEntry {
   updatedAt       DateTime    @updatedAt
   deletedAt       DateTime?
 
-  plan       ProductionPlan @relation(fields: [planId], references: [id])
-  createdBy  User           @relation("EntryCreator", fields: [createdById], references: [id])
-  approvedBy User?          @relation("EntryApprover", fields: [approvedById], references: [id])
+  plan          ProductionPlan @relation(fields: [planId], references: [id])
+  createdBy     User           @relation("EntryCreator", fields: [createdById], references: [id])
+  approvedBy    User?          @relation("EntryApprover", fields: [approvedById], references: [id])
+  reworkEntries ReworkEntry[]
 
   @@index([planId])
   @@index([status])
@@ -380,6 +397,26 @@ model ProductionEntry {
   @@index([deletedAt])
   @@index([planId, deletedAt, status])
   @@map("production_entries")
+}
+
+/** Zone-wise rework cases linked to an hourly production entry (separate from Hold) */
+model ReworkEntry {
+  id                 String     @id @default(cuid())
+  productionEntryId  String
+  zone               ReworkZone
+  reworkCases        Float      @default(0)
+  remarks            String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  deletedAt          DateTime?
+
+  productionEntry ProductionEntry @relation(fields: [productionEntryId], references: [id])
+
+  @@unique([productionEntryId, zone])
+  @@index([productionEntryId])
+  @@index([zone])
+  @@index([deletedAt])
+  @@map("rework_entries")
 }
 
 model DowntimeEntry {
@@ -646,4 +683,104 @@ model SalesEntry {
   @@index([channel])
   @@index([deletedAt])
   @@map("sales_entries")
+}
+
+/** RFT Reject Area master (Filling, Capping, Label, …) */
+model RejectArea {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  shortLabel  String
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  types   RejectType[]
+  rejects RftRejectQty[]
+
+  @@index([sortOrder])
+  @@index([deletedAt])
+  @@map("reject_areas")
+}
+
+/** Reject type under an area (Underfill, Loose Cap, …) for Pareto */
+model RejectType {
+  id          String    @id @default(cuid())
+  areaId      String
+  code        String
+  name        String
+  example     String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  area    RejectArea     @relation(fields: [areaId], references: [id])
+  rejects RftRejectQty[]
+
+  @@unique([areaId, code])
+  @@index([areaId])
+  @@index([deletedAt])
+  @@map("reject_types")
+}
+
+/**
+ * Right First Time daily entry (Excel-style):
+ * Total Produced + area-wise reject qty → FTG = Produced − Total Reject
+ */
+model RftEntry {
+  id            String   @id @default(cuid())
+  entryDate     DateTime @db.Date
+  plantId       String?
+  lineId        String
+  shiftId       String
+  productId     String
+  skuId         String
+  totalProduced Float
+  remarks       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+  createdById   String?
+
+  plant     Plant?          @relation(fields: [plantId], references: [id])
+  line      ProductionLine  @relation(fields: [lineId], references: [id])
+  shift     Shift           @relation(fields: [shiftId], references: [id])
+  product   Product         @relation(fields: [productId], references: [id])
+  sku       Sku             @relation(fields: [skuId], references: [id])
+  createdBy User?           @relation("RftEntryCreator", fields: [createdById], references: [id])
+  rejects   RftRejectQty[]
+
+  @@unique([entryDate, lineId, shiftId, skuId])
+  @@index([entryDate])
+  @@index([lineId])
+  @@index([shiftId])
+  @@index([productId])
+  @@index([skuId])
+  @@index([deletedAt])
+  @@map("rft_entries")
+}
+
+model RftRejectQty {
+  id           String   @id @default(cuid())
+  rftEntryId   String
+  areaId       String
+  rejectTypeId String?
+  quantity     Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  rftEntry   RftEntry    @relation(fields: [rftEntryId], references: [id])
+  area       RejectArea  @relation(fields: [areaId], references: [id])
+  rejectType RejectType? @relation(fields: [rejectTypeId], references: [id])
+
+  @@index([rftEntryId])
+  @@index([areaId])
+  @@index([rejectTypeId])
+  @@index([deletedAt])
+  @@map("rft_reject_qtys")
 }
