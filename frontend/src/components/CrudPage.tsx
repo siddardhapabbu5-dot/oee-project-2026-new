@@ -1,11 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import api, { type ApiResponse } from '../lib/api';
+import { FilterBar, FilterField, FILTER_CTRL } from '../components/FilterBar';
 import { Badge, EmptyState, Field, IconButton, LoadingBlock, Modal, PageHeader, SortableTh } from '../components/ui';
 
 type Column<T> = { key: keyof T | string; label: string; render?: (row: T) => ReactNode };
+
+type CrudFilter = {
+  name: string;
+  label: string;
+  options: Array<{ value: string; label: string }>;
+  allLabel?: string;
+};
 
 export function CrudPage<T extends { id: string }>({
   title,
@@ -19,6 +27,10 @@ export function CrudPage<T extends { id: string }>({
   canDelete = true,
   queryKey,
   invalidateKeys = [],
+  filters = [],
+  filterColumnsClassName = 'sm:grid-cols-2 lg:grid-cols-4',
+  countLabel = 'records',
+  countExtra,
 }: {
   title: string;
   subtitle?: string;
@@ -32,8 +44,16 @@ export function CrudPage<T extends { id: string }>({
   queryKey?: string;
   /** Extra react-query keys to refresh after create/update/delete (e.g. linked masters). */
   invalidateKeys?: string[];
+  /** Optional dropdown filters — sent as query params when set */
+  filters?: CrudFilter[];
+  filterColumnsClassName?: string;
+  /** Label for result count, e.g. "SKUs" or "products" */
+  countLabel?: string;
+  /** Extra count detail next to main count (e.g. unique products) */
+  countExtra?: (rows: T[], total: number) => ReactNode;
 }) {
   const [search, setSearch] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<T | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -41,6 +61,15 @@ export function CrudPage<T extends { id: string }>({
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const qc = useQueryClient();
   const key = queryKey ?? endpoint;
+
+  const activeFilters = useMemo(() => {
+    const out: Record<string, string> = {};
+    for (const f of filters) {
+      const v = filterValues[f.name];
+      if (v) out[f.name] = v;
+    }
+    return out;
+  }, [filters, filterValues]);
 
   async function refreshRelated() {
     await qc.invalidateQueries({ queryKey: [key] });
@@ -50,11 +79,15 @@ export function CrudPage<T extends { id: string }>({
   }
 
   const list = useQuery({
-    queryKey: [key, search],
+    queryKey: [key, search, activeFilters],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<T[]>>(endpoint, { params: { search, limit: 100 } });
+      const res = await api.get<ApiResponse<T[]>>(endpoint, {
+        params: { search: search || undefined, limit: 500, ...activeFilters },
+      });
       return res.data;
     },
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
   });
 
   const save = useMutation({
@@ -129,6 +162,14 @@ export function CrudPage<T extends { id: string }>({
     setOpen(true);
   }
 
+  function clearFilters() {
+    setSearch('');
+    setFilterValues({});
+  }
+
+  const hasActiveFilters = Boolean(search) || Object.keys(activeFilters).length > 0;
+  const totalCount = list.data?.meta?.total ?? rows.length;
+
   return (
     <div>
       <PageHeader
@@ -150,13 +191,62 @@ export function CrudPage<T extends { id: string }>({
           </div>
         }
       />
-      {list.isLoading ? (
+
+      {filters.length > 0 ? (
+        <FilterBar columnsClassName={filterColumnsClassName}>
+          {filters.map((f) => (
+            <FilterField key={f.name} label={f.label}>
+              <select
+                className={FILTER_CTRL}
+                value={filterValues[f.name] || ''}
+                onChange={(e) => setFilterValues((prev) => ({ ...prev, [f.name]: e.target.value }))}
+              >
+                <option value="">{f.allLabel ?? 'All'}</option>
+                {f.options.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+          ))}
+          <FilterField label="Clear">
+            <button
+              type="button"
+              className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
+              disabled={!hasActiveFilters}
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
+          </FilterField>
+        </FilterBar>
+      ) : null}
+
+      {!list.isLoading || list.data ? (
+        <p className="mb-3 text-sm" style={{ color: 'var(--muted)' }}>
+          <strong style={{ color: 'var(--text)' }}>{totalCount.toLocaleString()}</strong>{' '}
+          {countLabel}
+          {totalCount === 1 ? '' : 's'}
+          {hasActiveFilters ? ' matching filters' : ''}
+          {countExtra ? countExtra(rows, totalCount) : null}
+          {list.isFetching ? ' · updating…' : ''}
+        </p>
+      ) : null}
+
+      {list.isLoading && !list.data ? (
         <LoadingBlock />
       ) : rows.length === 0 ? (
         <div className="panel p-6">
-          <EmptyState message="No records found" />
+          <EmptyState message={search || Object.keys(activeFilters).length ? 'No records match your filters' : 'No records found'} />
         </div>
       ) : (
+        <>
+          {list.isFetching ? (
+            <p className="mb-2 text-xs" style={{ color: 'var(--muted)' }}>
+              Updating…
+            </p>
+          ) : null}
         <div className="table-wrap panel">
           <table className="data">
             <thead>
@@ -210,6 +300,7 @@ export function CrudPage<T extends { id: string }>({
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <Modal open={open} title={editing ? `Edit ${title}` : `Create ${title}`} onClose={() => setOpen(false)}>

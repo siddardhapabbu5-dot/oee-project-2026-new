@@ -135,8 +135,10 @@ export default function ShopFloorPage() {
     queryFn: async () => (await api.get<ApiResponse<Array<{ id: string; name: string; standardMins: number }>>>('/changeover-types')).data.data,
   });
   const products = useQuery({
-    queryKey: ['products'],
-    queryFn: async () => (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/products', { params: { limit: 100 } })).data.data,
+    queryKey: ['product-options'],
+    queryFn: async () =>
+      (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/products/options')).data.data,
+    staleTime: 300_000,
   });
 
   const reasons = useMemo(() => {

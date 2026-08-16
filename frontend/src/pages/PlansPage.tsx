@@ -43,6 +43,25 @@ function timeFromIso(value?: string) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/** Build start/end datetimes; if end ≤ start, treat as overnight (end next day). */
+function buildPlanWindow(date: string, startTime: string, endTime: string) {
+  const start = new Date(`${date}T${startTime || '06:00'}:00`);
+  let end = new Date(`${date}T${endTime || '14:00'}:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  if (end.getTime() <= start.getTime()) {
+    end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return { start, end };
+}
+
+function windowOverlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
+  return aStart.getTime() < bEnd.getTime() && bStart.getTime() < aEnd.getTime();
+}
+
+function fmtHm(d: Date) {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 function localToday() {
   const d = new Date();
   const y = d.getFullYear();
@@ -88,6 +107,56 @@ export default function PlansPage() {
       ).data.data,
   });
 
+  const formDayPlans = useQuery({
+    queryKey: ['plans-line-day', form.productionDate, form.lineId],
+    enabled: open && Boolean(form.productionDate && form.lineId),
+    queryFn: async () =>
+      (
+        await api.get<ApiResponse<Plan[]>>('/plans', {
+          params: {
+            limit: 200,
+            from: form.productionDate,
+            to: form.productionDate,
+            lineId: form.lineId,
+          },
+        })
+      ).data.data,
+    staleTime: 30_000,
+  });
+
+  const timingOverlaps = useMemo(() => {
+    if (!form.productionDate || !form.lineId || !form.startTime || !form.endTime) return [];
+    const window = buildPlanWindow(form.productionDate, form.startTime, form.endTime);
+    if (!window) return [];
+    const rows = formDayPlans.data ?? [];
+    const hits: Array<{ planNumber: string; shiftName: string; start: string; end: string }> = [];
+    for (const p of rows) {
+      if (editing && p.id === editing.id) continue;
+      const oStart = new Date(p.plannedStartTime);
+      let oEnd = new Date(p.plannedEndTime);
+      if (Number.isNaN(oStart.getTime()) || Number.isNaN(oEnd.getTime())) continue;
+      if (oEnd.getTime() <= oStart.getTime()) {
+        oEnd = new Date(oEnd.getTime() + 24 * 60 * 60 * 1000);
+      }
+      if (windowOverlaps(window.start, window.end, oStart, oEnd)) {
+        hits.push({
+          planNumber: p.planNumber,
+          shiftName: p.shift?.name || '—',
+          start: fmtHm(oStart),
+          end: fmtHm(oEnd),
+        });
+      }
+    }
+    return hits;
+  }, [
+    form.productionDate,
+    form.lineId,
+    form.startTime,
+    form.endTime,
+    formDayPlans.data,
+    editing,
+  ]);
+
   const sortedPlans = useMemo(() => {
     const rows = plans.data ?? [];
     return [...rows].sort((a, b) => {
@@ -108,7 +177,12 @@ export default function PlansPage() {
   const plants = useQuery({ queryKey: ['plants'], queryFn: async () => (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/plants', { params: { limit: 100 } })).data.data });
   const lines = useQuery({ queryKey: ['lines'], queryFn: async () => (await api.get<ApiResponse<Array<{ id: string; code: string; name: string; plantId: string }>>>('/lines', { params: { limit: 100 } })).data.data });
   const shifts = useQuery({ queryKey: ['shifts'], queryFn: async () => (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/shifts')).data.data });
-  const products = useQuery({ queryKey: ['products'], queryFn: async () => (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/products', { params: { limit: 100 } })).data.data });
+  const products = useQuery({
+    queryKey: ['product-options'],
+    queryFn: async () =>
+      (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/products/options')).data.data,
+    staleTime: 300_000,
+  });
   const supervisors = useQuery({
     queryKey: ['supervisors'],
     queryFn: async () =>
@@ -173,6 +247,7 @@ export default function PlansPage() {
       plannedManpower: '12',
       startTime: '06:00',
       endTime: '14:00',
+      allowOverlap: 'false',
     });
     setOpen(true);
   }
@@ -194,6 +269,7 @@ export default function PlansPage() {
       endTime: timeFromIso(p.plannedEndTime),
       status: p.status,
       supervisorId: p.supervisorId || p.supervisor?.id || '',
+      allowOverlap: 'false',
     });
     setOpen(true);
   }
@@ -206,8 +282,19 @@ export default function PlansPage() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const start = `${form.productionDate}T${form.startTime || '06:00'}:00`;
-      const end = `${form.productionDate}T${form.endTime || '14:00'}:00`;
+      const window = buildPlanWindow(
+        form.productionDate,
+        form.startTime || '06:00',
+        form.endTime || '14:00',
+      );
+      if (!window) throw new Error('Invalid production start or end time');
+
+      if (timingOverlaps.length > 0 && form.allowOverlap !== 'true') {
+        throw new Error(
+          `Times overlap with ${formatWorkOrder(timingOverlaps[0].planNumber)} (${timingOverlaps[0].start}–${timingOverlaps[0].end}). Adjust times or check Allow overlap.`,
+        );
+      }
+
       const payload = {
         productionDate: form.productionDate,
         plantId: form.plantId,
@@ -218,10 +305,11 @@ export default function PlansPage() {
         batchNumber: form.batchNumber,
         plannedCases: Number(form.plannedCases),
         plannedOperatingMins: Number(form.plannedOperatingMins || 480),
-        plannedStartTime: start,
-        plannedEndTime: end,
+        plannedStartTime: window.start.toISOString(),
+        plannedEndTime: window.end.toISOString(),
         plannedManpower: Number(form.plannedManpower || 10),
         supervisorId: form.supervisorId || null,
+        allowOverlap: form.allowOverlap === 'true',
         ...(form.status ? { status: form.status } : {}),
       };
       if (editing) return api.patch(`/plans/${editing.id}`, payload);
@@ -551,13 +639,57 @@ export default function PlansPage() {
             />
           </Field>
           <Field label="Start Time">
-            <input className="input" type="time" value={form.startTime ?? '06:00'} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
+            <input
+              className="input"
+              type="time"
+              value={form.startTime ?? '06:00'}
+              onChange={(e) => setForm({ ...form, startTime: e.target.value, allowOverlap: 'false' })}
+            />
           </Field>
           <Field label="End Time">
-            <input className="input" type="time" value={form.endTime ?? '14:00'} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
+            <input className="input" type="time" value={form.endTime ?? '14:00'} onChange={(e) => setForm({ ...form, endTime: e.target.value, allowOverlap: 'false' })} />
           </Field>
         </div>
-        <button className="btn btn-primary mt-3 w-full" onClick={() => save.mutate()} disabled={save.isPending}>
+
+        {form.productionDate && form.lineId && form.startTime && form.endTime ? (
+          <div className="mt-3 space-y-2">
+            {timingOverlaps.length > 0 ? (
+              <div
+                className="rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: 'var(--warn)', background: 'color-mix(in srgb, var(--warn) 12%, transparent)' }}
+              >
+                <p className="font-medium" style={{ color: 'var(--text)' }}>
+                  Time overlap on this line
+                </p>
+                <ul className="mt-1 list-inside list-disc text-xs" style={{ color: 'var(--muted)' }}>
+                  {timingOverlaps.map((o) => (
+                    <li key={`${o.planNumber}-${o.start}`}>
+                      {formatWorkOrder(o.planNumber)} · {o.shiftName} · {o.start}–{o.end}
+                    </li>
+                  ))}
+                </ul>
+                <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.allowOverlap === 'true'}
+                    onChange={(e) => setForm({ ...form, allowOverlap: e.target.checked ? 'true' : 'false' })}
+                  />
+                  Allow overlap (save anyway)
+                </label>
+              </div>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                No time overlap with other work orders on this line for {form.productionDate}.
+              </p>
+            )}
+          </div>
+        ) : null}
+
+        <button
+          className="btn btn-primary mt-3 w-full"
+          onClick={() => save.mutate()}
+          disabled={save.isPending || (timingOverlaps.length > 0 && form.allowOverlap !== 'true')}
+        >
           {save.isPending ? 'Saving...' : editing ? 'Update Plan' : 'Save Plan'}
         </button>
       </Modal>

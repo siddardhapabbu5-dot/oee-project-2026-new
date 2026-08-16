@@ -1,9 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import api, { type ApiResponse } from '../lib/api';
-import { DateWithIcon, Field, IconButton, LoadingBlock, PageHeader } from '../components/ui';
+import { FilterBar, FilterField, FILTER_CTRL } from '../components/FilterBar';
+import { DateWithIcon, Field, IconButton, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 
 const REASON_OPTIONS = ['As per production plan', 'RAW material issue'] as const;
 
@@ -124,15 +125,78 @@ const emptyForm = (): Record<string, string> => ({
   reason: REASON_OPTIONS[0],
 });
 
+function localYmd(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function todayLocal() {
+  return localYmd(new Date());
+}
+
+function monthStartLocal() {
+  const d = new Date();
+  return localYmd(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
 export default function ChangeoverEntriesPage() {
   const [form, setForm] = useState<Record<string, string>>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [filterFrom, setFilterFrom] = useState(() => monthStartLocal());
+  const [filterTo, setFilterTo] = useState(() => todayLocal());
+  const [filterLineId, setFilterLineId] = useState('');
+  const [filterTypeId, setFilterTypeId] = useState('');
+  const [filterKind, setFilterKind] = useState('');
   const qc = useQueryClient();
+  const rangeValid = Boolean(filterFrom && filterTo && filterFrom <= filterTo);
 
   const list = useQuery({
-    queryKey: ['changeover-entries'],
-    queryFn: async () => (await api.get<ApiResponse<ChangeoverRow[]>>('/changeover-entries')).data.data,
+    queryKey: ['changeover-entries', filterFrom, filterTo, filterLineId, filterTypeId, filterKind],
+    enabled: rangeValid,
+    queryFn: async () =>
+      (
+        await api.get<ApiResponse<ChangeoverRow[]>>('/changeover-entries', {
+          params: {
+            from: filterFrom,
+            to: filterTo,
+            ...(filterLineId ? { lineId: filterLineId } : {}),
+            ...(filterTypeId ? { changeoverTypeId: filterTypeId } : {}),
+            ...(filterKind ? { kind: filterKind } : {}),
+          },
+        })
+      ).data.data,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
   });
+
+  const summary = useMemo(() => {
+    const rows = list.data ?? [];
+    let totalActual = 0;
+    let totalStandard = 0;
+    let plannedCount = 0;
+    let unplannedCount = 0;
+    let overStandardCount = 0;
+    for (const c of rows) {
+      const actual = Number(c.actualMins) || 0;
+      const standard = Number(c.standardMins) || 0;
+      totalActual += actual;
+      totalStandard += standard;
+      if (c.kind === 'UNPLANNED') unplannedCount += 1;
+      else plannedCount += 1;
+      if (actual > standard && standard > 0) overStandardCount += 1;
+    }
+    return {
+      count: rows.length,
+      totalActual,
+      totalStandard,
+      variance: totalActual - totalStandard,
+      plannedCount,
+      unplannedCount,
+      overStandardCount,
+    };
+  }, [list.data]);
 
   const lines = useQuery({
     queryKey: ['lines'],
@@ -140,13 +204,14 @@ export default function ChangeoverEntriesPage() {
       (
         await api.get<ApiResponse<Array<{ id: string; code: string; name: string }>>>('/lines', { params: { limit: 100 } })
       ).data.data,
+    staleTime: 300_000,
   });
 
   const products = useQuery({
-    queryKey: ['products'],
+    queryKey: ['product-options'],
     queryFn: async () =>
-      (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/products', { params: { limit: 200 } })).data
-        .data,
+      (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/products/options')).data.data,
+    staleTime: 300_000,
   });
 
   const skus = useQuery({
@@ -163,6 +228,7 @@ export default function ChangeoverEntriesPage() {
           '/changeover-types',
         )
       ).data.data,
+    staleTime: 300_000,
   });
 
   const selectedType = useMemo(
@@ -288,12 +354,28 @@ export default function ChangeoverEntriesPage() {
   }
 
   async function downloadExcel() {
+    if (!rangeValid) {
+      toast.error('Select a valid From/To date range');
+      return;
+    }
     try {
-      const res = await api.get('/changeover-entries/export/excel', { responseType: 'blob' });
+      const res = await api.get('/changeover-entries/export/excel', {
+        responseType: 'blob',
+        params: {
+          from: filterFrom,
+          to: filterTo,
+          ...(filterLineId ? { lineId: filterLineId } : {}),
+          ...(filterTypeId ? { changeoverTypeId: filterTypeId } : {}),
+          ...(filterKind ? { kind: filterKind } : {}),
+        },
+      });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `changeover-details-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.download =
+        filterFrom === filterTo
+          ? `changeover-details-${filterFrom}.xlsx`
+          : `changeover-details-${filterFrom}_to_${filterTo}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('Excel downloaded');
@@ -302,7 +384,7 @@ export default function ChangeoverEntriesPage() {
     }
   }
 
-  if (list.isLoading) return <LoadingBlock />;
+  if (list.isLoading && !list.data) return <LoadingBlock />;
 
   return (
     <div>
@@ -530,6 +612,125 @@ export default function ChangeoverEntriesPage() {
 
       <div className="panel p-4">
         <h3 className="mb-3 font-semibold">Changeover Log</h3>
+
+        <FilterBar columnsClassName="sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+          <FilterField label="From">
+            <input
+              className={FILTER_CTRL}
+              type="date"
+              value={filterFrom}
+              max={filterTo || undefined}
+              onChange={(e) => {
+                const v = e.target.value;
+                setFilterFrom(v);
+                if (filterTo && v > filterTo) setFilterTo(v);
+              }}
+            />
+          </FilterField>
+          <FilterField label="To">
+            <input
+              className={FILTER_CTRL}
+              type="date"
+              value={filterTo}
+              min={filterFrom || undefined}
+              onChange={(e) => {
+                const v = e.target.value;
+                setFilterTo(v);
+                if (filterFrom && v < filterFrom) setFilterFrom(v);
+              }}
+            />
+          </FilterField>
+          <FilterField label="Line">
+            <select className={FILTER_CTRL} value={filterLineId} onChange={(e) => setFilterLineId(e.target.value)}>
+              <option value="">All lines</option>
+              {(lines.data ?? []).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.code || l.name}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Type">
+            <select className={FILTER_CTRL} value={filterTypeId} onChange={(e) => setFilterTypeId(e.target.value)}>
+              <option value="">All types</option>
+              {(coTypes.data ?? []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="Plan">
+            <select className={FILTER_CTRL} value={filterKind} onChange={(e) => setFilterKind(e.target.value)}>
+              <option value="">All</option>
+              <option value="PLANNED">Planned</option>
+              <option value="UNPLANNED">Unplanned</option>
+            </select>
+          </FilterField>
+          <FilterField label="Today">
+            <button
+              type="button"
+              className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
+              onClick={() => {
+                const t = todayLocal();
+                setFilterFrom(t);
+                setFilterTo(t);
+              }}
+            >
+              Today
+            </button>
+          </FilterField>
+          <FilterField label="This month">
+            <button
+              type="button"
+              className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
+              onClick={() => {
+                setFilterFrom(monthStartLocal());
+                setFilterTo(todayLocal());
+              }}
+            >
+              This month
+            </button>
+          </FilterField>
+        </FilterBar>
+
+        {!rangeValid ? (
+          <p className="mb-3 text-xs" style={{ color: 'var(--danger)' }}>
+            From date must be on or before To date.
+          </p>
+        ) : null}
+
+        {rangeValid ? (
+          <>
+            <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <KpiCard
+                label="Changeovers"
+                value={summary.count.toLocaleString()}
+                hint={
+                  filterFrom === filterTo
+                    ? filterFrom
+                    : `${filterFrom} → ${filterTo}`
+                }
+              />
+              <KpiCard label="Actual Minutes" value={summary.totalActual.toLocaleString()} tone="warn" />
+              <KpiCard label="Standard Minutes" value={summary.totalStandard.toLocaleString()} />
+              <KpiCard
+                label="Variance"
+                value={`${summary.variance >= 0 ? '+' : ''}${summary.variance}`}
+                hint={`${summary.overStandardCount} over standard`}
+                tone={summary.variance > 0 ? 'bad' : 'good'}
+              />
+              <KpiCard label="Planned" value={summary.plannedCount.toLocaleString()} tone="info" />
+              <KpiCard label="Unplanned" value={summary.unplannedCount.toLocaleString()} tone="warn" />
+            </div>
+            {list.isFetching ? (
+              <p className="mb-2 text-xs" style={{ color: 'var(--muted)' }}>
+                Updating log…
+              </p>
+            ) : null}
+          </>
+        ) : null}
+
         {list.isError ? (
           <p className="text-sm text-red-600">Could not load changeovers. Refresh and try again.</p>
         ) : (
@@ -624,7 +825,7 @@ export default function ChangeoverEntriesPage() {
                 {(list.data?.length ?? 0) === 0 ? (
                   <tr>
                     <td colSpan={14} style={{ color: 'var(--muted)' }}>
-                      No changeovers logged
+                      No changeovers in this range. Change filters or add a new entry above.
                     </td>
                   </tr>
                 ) : null}

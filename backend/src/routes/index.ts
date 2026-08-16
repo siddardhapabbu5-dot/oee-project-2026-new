@@ -186,6 +186,9 @@ router.delete('/lines/:id', authenticate, authorize('ADMIN'), asyncHandler(async
 }));
 
 crudList('/products', ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], (q) => masterService.listProducts(q));
+router.get('/products/options', authenticate, asyncHandler(async (_req, res) => {
+  success(res, await masterService.listProductOptions());
+}));
 router.post('/products', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
   success(res, await masterService.createProduct(productSchema.parse(req.body), req), 201);
 }));
@@ -208,7 +211,9 @@ router.delete('/brands/:id', authenticate, authorize('ADMIN'), asyncHandler(asyn
 }));
 
 crudList('/skus', ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], (q) => masterService.listSkus(q as never), (req) => ({
-  productId: req.query.productId,
+  productId: req.query.productId as string | undefined,
+  packVolume: req.query.packVolume as string | undefined,
+  isActive: req.query.isActive as string | undefined,
 }));
 router.post('/skus', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
   success(res, await masterService.createSku(skuSchema.parse(req.body), req), 201);
@@ -320,6 +325,13 @@ router.get('/plans/export/excel', authenticate, asyncHandler(async (req, res) =>
   res.send(buffer);
 }));
 
+router.get('/production-entries/shift-totals', authenticate, asyncHandler(async (req, res) => {
+  const from = typeof req.query.from === 'string' ? req.query.from : '';
+  const to = typeof req.query.to === 'string' ? req.query.to : '';
+  const lineId = typeof req.query.lineId === 'string' ? req.query.lineId : undefined;
+  success(res, await productionService.getShiftProductionTotals({ from, to, lineId }, req.user));
+}));
+
 router.get('/production-entries/export/excel', authenticate, asyncHandler(async (req, res) => {
   const mode = String(req.query.mode || 'day') === 'shift' ? 'shift' : 'day';
   const date = typeof req.query.date === 'string' ? req.query.date : undefined;
@@ -390,13 +402,38 @@ router.delete('/downtime-entries/:id', authenticate, authorize('ADMIN', 'PRODUCT
 }));
 
 router.get('/changeover-entries', authenticate, asyncHandler(async (req, res) => {
-  success(res, await productionService.listChangeovers(req.user));
+  success(
+    res,
+    await productionService.listChangeovers(
+      {
+        from: req.query.from as string | undefined,
+        to: req.query.to as string | undefined,
+        lineId: req.query.lineId as string | undefined,
+        changeoverTypeId: req.query.changeoverTypeId as string | undefined,
+        kind: req.query.kind as string | undefined,
+      },
+      req.user,
+    ),
+  );
 }));
 
 router.get('/changeover-entries/export/excel', authenticate, asyncHandler(async (req, res) => {
-  const buffer = await productionService.exportChangeoversExcel(req.user);
+  const from = req.query.from as string | undefined;
+  const to = req.query.to as string | undefined;
+  const buffer = await productionService.exportChangeoversExcel(
+    {
+      from,
+      to,
+      lineId: req.query.lineId as string | undefined,
+      changeoverTypeId: req.query.changeoverTypeId as string | undefined,
+      kind: req.query.kind as string | undefined,
+    },
+    req.user,
+  );
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', 'attachment; filename=changeover-details.xlsx');
+  const range =
+    from && to && from !== to ? `${from}_to_${to}` : from || to || new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Disposition', `attachment; filename=changeover-details-${range}.xlsx`);
   res.send(buffer);
 }));
 

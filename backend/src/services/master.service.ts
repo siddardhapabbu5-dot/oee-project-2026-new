@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { NotFoundError } from '../utils/errors.js';
 import { writeAuditLog } from '../utils/audit.js';
+import { pickProductOptions } from '../utils/productOptions.js';
 import type { Request } from 'express';
 
 type SoftModel =
@@ -283,8 +284,51 @@ export const masterService = {
         },
       }),
     ]);
-    return { total, items };
+    const deduped: typeof items = [];
+    const seenBrandIds = new Set<string>();
+    const seenNames = new Set<string>();
+    for (const item of items) {
+      if (item.brandId) {
+        if (seenBrandIds.has(item.brandId)) continue;
+        seenBrandIds.add(item.brandId);
+      } else {
+        const key = item.name.trim().toLowerCase();
+        if (seenNames.has(key)) continue;
+        seenNames.add(key);
+      }
+      deduped.push(item);
+    }
+    return { total: deduped.length, items: deduped };
   },
+
+  /** One product per brand for dropdowns (Work Order, Changeover, etc.). */
+  async listProductOptions() {
+    const brands = await prisma.brand.findMany({
+      where: { deletedAt: null, isActive: true },
+      orderBy: { name: 'asc' },
+      include: {
+        products: {
+          where: { deletedAt: null, isActive: true },
+          orderBy: { createdAt: 'asc' },
+          include: { skus: { where: { deletedAt: null } } },
+        },
+      },
+    });
+
+    const entries: Array<{ brandName: string; productId: string; skuCount: number }> = [];
+    for (const brand of brands) {
+      let product = brand.products[0];
+      if (!product) {
+        const ensured = await ensureProductForBrand(brand);
+        product = { ...ensured, skus: [] };
+      }
+      const skuCount = brand.products.reduce((s, p) => s + p.skus.length, 0);
+      entries.push({ brandName: brand.name, productId: product.id, skuCount });
+    }
+
+    return pickProductOptions(entries);
+  },
+
   async createProduct(data: Prisma.ProductUncheckedCreateInput, req?: Request) {
     const item = await prisma.product.create({ data, include: { brand: true, skus: true } });
     await writeAuditLog({ req, action: 'CREATE', entity: 'Product', entityId: item.id, after: item });
@@ -304,10 +348,26 @@ export const masterService = {
   deleteProduct: (id: string, req?: Request) => softDelete('product', id, req, 'Product'),
 
   // SKUs
-  async listSkus(q: { skip: number; take: number; search?: string; productId?: string }) {
+  async listSkus(q: {
+    skip: number;
+    take: number;
+    search?: string;
+    productId?: string;
+    packVolume?: string;
+    isActive?: string;
+  }) {
     const where: Prisma.SkuWhereInput = {
       deletedAt: null,
       ...(q.productId ? { productId: q.productId } : {}),
+      ...(q.packVolume
+        ? {
+            OR: [
+              { packVolume: { equals: q.packVolume, mode: 'insensitive' } },
+              { packVolume: { contains: q.packVolume.replace(/\s+/g, ''), mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(q.isActive === 'true' ? { isActive: true } : q.isActive === 'false' ? { isActive: false } : {}),
       ...(q.search
         ? {
             OR: [

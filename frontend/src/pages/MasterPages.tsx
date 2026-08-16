@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api, { type ApiResponse } from '../lib/api';
 import { CrudPage, StatusBadge } from '../components/CrudPage';
@@ -114,7 +115,7 @@ export function BrandsPage() {
       title="Brands"
       subtitle="Brand master — new brands appear under Products & SKUs → Product Name"
       endpoint="/brands"
-      invalidateKeys={['brands-product-options', 'products-options', '/products', '/skus', '/brands']}
+      invalidateKeys={['brands-product-options', 'products-options', 'product-options', '/products', '/skus', '/brands']}
       columns={[
         { key: 'name', label: 'Brand' },
         { key: 'description', label: 'Description' },
@@ -140,23 +141,6 @@ export function BrandsPage() {
 }
 
 export function ProductsPage() {
-  // Product Name = Brands master (each brand is linked to a Product row for SKUs)
-  const brands = useQuery({
-    queryKey: ['brands-product-options'],
-    queryFn: async () =>
-      (
-        await api.get<
-          ApiResponse<
-            Array<{
-              id: string;
-              name: string;
-              products?: Array<{ id: string; name: string }>;
-            }>
-          >
-        >('/brands', { params: { limit: 500 } })
-      ).data.data,
-  });
-
   /** Pack size (units/case) from pack volume */
   function packSizeFromVolume(volume?: string | null) {
     const v = (volume || '').toUpperCase().replace(/\s+/g, '');
@@ -173,20 +157,63 @@ export function ProductsPage() {
 
   const PACK_VOLUMES = ['200 ML', '250 ML', '300 ML', '500 ML', '750 ML', '1000 ML', '2000 ML', 'Jar-20L'];
 
-  const productOptions = [...(brands.data ?? [])]
-    .map((b) => {
-      const productId = b.products?.[0]?.id;
-      if (!productId) return null;
-      return { value: productId, label: b.name };
-    })
-    .filter((x): x is { value: string; label: string } => !!x)
-    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+  const productOptionsQuery = useQuery({
+    queryKey: ['product-options'],
+    queryFn: async () =>
+      (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/products/options')).data.data,
+    staleTime: 300_000,
+  });
+
+  const productOptions = useMemo(
+    () =>
+      (productOptionsQuery.data ?? []).map((p) => ({
+        value: p.id,
+        label: p.name,
+      })),
+    [productOptionsQuery.data],
+  );
 
   return (
     <CrudPage<Row>
       title="Products & SKUs"
       subtitle="SKU Code · Product Name · Pack Volume · Pack Size · Status"
       endpoint="/skus"
+      queryKey="/skus"
+      countLabel="SKU"
+      countExtra={(rows) => {
+        const productCount = new Set(rows.map((r) => r.productId).filter(Boolean)).size;
+        return (
+          <>
+            {' · '}
+            <strong style={{ color: 'var(--text)' }}>{productCount.toLocaleString()}</strong> product
+            {productCount === 1 ? '' : 's'}
+          </>
+        );
+      }}
+      filterColumnsClassName="sm:grid-cols-2 lg:grid-cols-4"
+      filters={[
+        {
+          name: 'productId',
+          label: 'Product Name',
+          allLabel: '— All products —',
+          options: productOptions,
+        },
+        {
+          name: 'packVolume',
+          label: 'Pack Volume',
+          allLabel: '— All pack sizes —',
+          options: PACK_VOLUMES.map((v) => ({ value: v, label: v })),
+        },
+        {
+          name: 'isActive',
+          label: 'Production Status',
+          allLabel: '— Active & Inactive —',
+          options: [
+            { value: 'true', label: 'Active only' },
+            { value: 'false', label: 'Inactive only' },
+          ],
+        },
+      ]}
       columns={[
         { key: 'code', label: 'SKU Code' },
         {

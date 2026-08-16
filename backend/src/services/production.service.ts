@@ -4,7 +4,7 @@ import { prisma } from '../config/prisma.js';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js';
 import { writeAuditLog } from '../utils/audit.js';
 import { calcLoss, minutesBetween } from '../utils/oee.js';
-import { parseCalendarDate, toCalendarDate } from '../utils/dates.js';
+import { calendarDateRange, parseCalendarDate, toCalendarDate } from '../utils/dates.js';
 import type { Request } from 'express';
 import type { AuthUser } from '../middleware/auth.js';
 
@@ -304,6 +304,114 @@ function hourlyLossDowntime(plannedCases: number, actualCases: number, lossCases
   };
 }
 
+/** Totals by shift (and grand total) for a date range — used by Production Entries "All shifts". */
+export async function getShiftProductionTotals(
+  params: { from: string; to: string; lineId?: string },
+  user?: AuthUser,
+) {
+  const fromDay = String(params.from || '').slice(0, 10);
+  const toDay = String(params.to || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDay) || !/^\d{4}-\d{2}-\d{2}$/.test(toDay)) {
+    throw new ValidationError('Valid From/To dates are required (YYYY-MM-DD)');
+  }
+  if (fromDay > toDay) throw new ValidationError('From date must be on or before To date');
+
+  const rangeStart = new Date(`${fromDay}T00:00:00.000Z`);
+  const rangeEnd = new Date(`${toDay}T23:59:59.999Z`);
+
+  const plans = await prisma.productionPlan.findMany({
+    where: {
+      deletedAt: null,
+      ...scopePlans(user),
+      productionDate: { gte: rangeStart, lte: rangeEnd },
+      ...(params.lineId ? { lineId: params.lineId } : {}),
+    },
+    include: {
+      shift: { select: { id: true, name: true, code: true } },
+      line: { select: { id: true, code: true, name: true } },
+      productionEntries: {
+        where: { deletedAt: null },
+        select: { plannedCases: true, actualCases: true, goodCases: true, rejectCases: true, lossCases: true },
+      },
+      downtimeEntries: {
+        where: { deletedAt: null },
+        select: { durationMins: true },
+      },
+    },
+    orderBy: [{ shift: { name: 'asc' } }, { planNumber: 'asc' }],
+  });
+
+  type Acc = {
+    shiftId: string;
+    shiftName: string;
+    shiftCode: string;
+    planCount: number;
+    plannedCases: number;
+    actualCases: number;
+    goodCases: number;
+    rejectCases: number;
+    lossCases: number;
+    downtimeMins: number;
+  };
+
+  const byShift = new Map<string, Acc>();
+
+  for (const plan of plans) {
+    const sid = plan.shiftId || plan.shift?.id || 'unknown';
+    let row = byShift.get(sid);
+    if (!row) {
+      row = {
+        shiftId: sid,
+        shiftName: plan.shift?.name || 'Unknown',
+        shiftCode: plan.shift?.code || '',
+        planCount: 0,
+        plannedCases: 0,
+        actualCases: 0,
+        goodCases: 0,
+        rejectCases: 0,
+        lossCases: 0,
+        downtimeMins: 0,
+      };
+      byShift.set(sid, row);
+    }
+    row.planCount += 1;
+    row.plannedCases += plan.plannedCases || 0;
+    for (const e of plan.productionEntries) {
+      row.actualCases += e.actualCases || 0;
+      row.goodCases += e.goodCases || 0;
+      row.rejectCases += e.rejectCases || 0;
+      row.lossCases += e.lossCases || 0;
+    }
+    for (const d of plan.downtimeEntries) {
+      row.downtimeMins += d.durationMins || 0;
+    }
+  }
+
+  const shifts = [...byShift.values()].sort((a, b) => a.shiftName.localeCompare(b.shiftName));
+  const totals = shifts.reduce(
+    (s, r) => ({
+      planCount: s.planCount + r.planCount,
+      plannedCases: s.plannedCases + r.plannedCases,
+      actualCases: s.actualCases + r.actualCases,
+      goodCases: s.goodCases + r.goodCases,
+      rejectCases: s.rejectCases + r.rejectCases,
+      lossCases: s.lossCases + r.lossCases,
+      downtimeMins: s.downtimeMins + r.downtimeMins,
+    }),
+    {
+      planCount: 0,
+      plannedCases: 0,
+      actualCases: 0,
+      goodCases: 0,
+      rejectCases: 0,
+      lossCases: 0,
+      downtimeMins: 0,
+    },
+  );
+
+  return { from: fromDay, to: toDay, shifts, totals };
+}
+
 export async function exportProductionEntriesReportExcel(
   params: {
     mode: 'day' | 'shift';
@@ -496,6 +604,104 @@ async function nextPlanNumber() {
   return String(count + 1).padStart(6, '0');
 }
 
+function pad2(n: number) {
+  return String(n).padStart(2, '0');
+}
+
+function fmtHm(d: Date) {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/** Normalize plan window; if end ≤ start, treat as overnight (end next day). */
+function resolvePlanWindow(startInput: string | Date, endInput: string | Date) {
+  const startAt = new Date(startInput);
+  let endAt = new Date(endInput);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+    throw new ValidationError('Invalid production start or end time');
+  }
+  if (endAt.getTime() <= startAt.getTime()) {
+    endAt = new Date(endAt.getTime() + 24 * 60 * 60 * 1000);
+  }
+  return { startAt, endAt };
+}
+
+function windowOverlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
+  return aStart.getTime() < bEnd.getTime() && bStart.getTime() < aEnd.getTime();
+}
+
+async function findOverlappingPlans(opts: {
+  lineId: string;
+  productionDate: string | Date;
+  startAt: Date;
+  endAt: Date;
+  excludePlanId?: string;
+}) {
+  const day = toCalendarDate(opts.productionDate);
+  const rangeStart = new Date(`${day}T00:00:00.000Z`);
+  const rangeEnd = new Date(`${day}T23:59:59.999Z`);
+
+  const candidates = await prisma.productionPlan.findMany({
+    where: {
+      deletedAt: null,
+      lineId: opts.lineId,
+      productionDate: { gte: rangeStart, lte: rangeEnd },
+      ...(opts.excludePlanId ? { id: { not: opts.excludePlanId } } : {}),
+    },
+    select: {
+      id: true,
+      planNumber: true,
+      plannedStartTime: true,
+      plannedEndTime: true,
+      shift: { select: { name: true } },
+    },
+  });
+
+  const overlaps: Array<{
+    planNumber: string;
+    shiftName: string;
+    start: Date;
+    end: Date;
+  }> = [];
+
+  for (const other of candidates) {
+    const oStart = new Date(other.plannedStartTime);
+    let oEnd = new Date(other.plannedEndTime);
+    if (Number.isNaN(oStart.getTime()) || Number.isNaN(oEnd.getTime())) continue;
+    if (oEnd.getTime() <= oStart.getTime()) {
+      oEnd = new Date(oEnd.getTime() + 24 * 60 * 60 * 1000);
+    }
+    if (windowOverlaps(opts.startAt, opts.endAt, oStart, oEnd)) {
+      overlaps.push({
+        planNumber: other.planNumber,
+        shiftName: other.shift?.name || '—',
+        start: oStart,
+        end: oEnd,
+      });
+    }
+  }
+
+  return overlaps;
+}
+
+async function assertNoPlanTimeOverlap(
+  opts: {
+    lineId: string;
+    productionDate: string | Date;
+    startAt: Date;
+    endAt: Date;
+    excludePlanId?: string;
+  },
+  allowOverlap?: boolean,
+) {
+  if (allowOverlap) return;
+  const overlaps = await findOverlappingPlans(opts);
+  if (overlaps.length === 0) return;
+  const first = overlaps[0];
+  throw new ValidationError(
+    `Production time overlaps with work order ${first.planNumber} (${fmtHm(first.start)}–${fmtHm(first.end)}). Adjust times or allow overlap.`,
+  );
+}
+
 export async function createPlan(
   data: {
     productionDate: string | Date;
@@ -513,27 +719,40 @@ export async function createPlan(
     supervisorId?: string | null;
     status?: Prisma.EnumPlanStatusFieldUpdateOperationsInput['set'];
     remarks?: string | null;
+    allowOverlap?: boolean;
   },
   req?: Request,
 ) {
+  const { allowOverlap, ...planData } = data;
+  const { startAt, endAt } = resolvePlanWindow(planData.plannedStartTime, planData.plannedEndTime);
+  await assertNoPlanTimeOverlap(
+    {
+      lineId: planData.lineId,
+      productionDate: planData.productionDate,
+      startAt,
+      endAt,
+    },
+    allowOverlap,
+  );
+
   const plan = await prisma.productionPlan.create({
     data: {
       planNumber: await nextPlanNumber(),
-      productionDate: parseCalendarDate(data.productionDate),
-      plantId: data.plantId,
-      lineId: data.lineId,
-      shiftId: data.shiftId,
-      productId: data.productId,
-      skuId: data.skuId,
-      batchNumber: data.batchNumber,
-      plannedCases: data.plannedCases,
-      plannedOperatingMins: data.plannedOperatingMins,
-      plannedStartTime: new Date(data.plannedStartTime),
-      plannedEndTime: new Date(data.plannedEndTime),
-      plannedManpower: data.plannedManpower,
-      supervisorId: data.supervisorId,
-      status: (data.status as never) ?? 'SCHEDULED',
-      remarks: data.remarks,
+      productionDate: parseCalendarDate(planData.productionDate),
+      plantId: planData.plantId,
+      lineId: planData.lineId,
+      shiftId: planData.shiftId,
+      productId: planData.productId,
+      skuId: planData.skuId,
+      batchNumber: planData.batchNumber,
+      plannedCases: planData.plannedCases,
+      plannedOperatingMins: planData.plannedOperatingMins,
+      plannedStartTime: startAt,
+      plannedEndTime: endAt,
+      plannedManpower: planData.plannedManpower,
+      supervisorId: planData.supervisorId,
+      status: (planData.status as never) ?? 'SCHEDULED',
+      remarks: planData.remarks,
       createdById: req?.user?.id,
     },
     include: planInclude,
@@ -544,15 +763,44 @@ export async function createPlan(
 
 export async function updatePlan(id: string, data: Record<string, unknown>, req?: Request) {
   const before = await getPlan(id, req?.user);
+  const allowOverlap = data.allowOverlap === true;
+  const { allowOverlap: _drop, ...patch } = data;
+
+  const lineId = (typeof patch.lineId === 'string' ? patch.lineId : undefined) ?? before.lineId;
+  const productionDate =
+    (typeof patch.productionDate === 'string' || patch.productionDate instanceof Date
+      ? patch.productionDate
+      : undefined) ?? before.productionDate;
+  const startInput =
+    (typeof patch.plannedStartTime === 'string' || patch.plannedStartTime instanceof Date
+      ? patch.plannedStartTime
+      : undefined) ?? before.plannedStartTime;
+  const endInput =
+    (typeof patch.plannedEndTime === 'string' || patch.plannedEndTime instanceof Date
+      ? patch.plannedEndTime
+      : undefined) ?? before.plannedEndTime;
+  const { startAt, endAt } = resolvePlanWindow(startInput, endInput);
+
+  await assertNoPlanTimeOverlap(
+    {
+      lineId,
+      productionDate,
+      startAt,
+      endAt,
+      excludePlanId: id,
+    },
+    allowOverlap,
+  );
+
   const plan = await prisma.productionPlan.update({
     where: { id },
     data: {
-      ...data,
-      productionDate: data.productionDate
-        ? parseCalendarDate(data.productionDate as string)
+      ...patch,
+      productionDate: patch.productionDate
+        ? parseCalendarDate(patch.productionDate as string)
         : undefined,
-      plannedStartTime: data.plannedStartTime ? new Date(data.plannedStartTime as string) : undefined,
-      plannedEndTime: data.plannedEndTime ? new Date(data.plannedEndTime as string) : undefined,
+      plannedStartTime: patch.plannedStartTime ? startAt : undefined,
+      plannedEndTime: patch.plannedEndTime ? endAt : undefined,
       updatedById: req?.user?.id,
     },
     include: planInclude,
@@ -997,27 +1245,81 @@ const changeoverInclude = {
   toSku: { select: { id: true, code: true, name: true, packVolume: true } },
 } satisfies Prisma.ChangeoverEntryInclude;
 
-export async function listChangeovers(user?: AuthUser) {
-  const where: Prisma.ChangeoverEntryWhereInput = { deletedAt: null };
+function changeoverListWhere(
+  params: {
+    from?: string;
+    to?: string;
+    lineId?: string;
+    changeoverTypeId?: string;
+    kind?: string;
+  },
+  user?: AuthUser,
+): Prisma.ChangeoverEntryWhereInput {
+  const parts: Prisma.ChangeoverEntryWhereInput[] = [];
+
   if (user?.role === 'LINE_SUPERVISOR') {
-    where.OR = [
-      { line: { supervisorId: user.id } },
-      { plan: { supervisorId: user.id } },
-      { plan: { line: { supervisorId: user.id } } },
-    ];
+    parts.push({
+      OR: [
+        { line: { supervisorId: user.id } },
+        { plan: { supervisorId: user.id } },
+        { plan: { line: { supervisorId: user.id } } },
+      ],
+    });
   } else if (user?.role === 'PRODUCTION_MANAGER' && user.plantId) {
-    where.OR = [{ line: { plantId: user.plantId } }, { plan: { plantId: user.plantId } }];
+    parts.push({
+      OR: [{ line: { plantId: user.plantId } }, { plan: { plantId: user.plantId } }],
+    });
   }
 
+  if (params.from || params.to) {
+    const { start, end } = calendarDateRange(params.from, params.to, 365);
+    parts.push({
+      OR: [
+        { productionDate: { gte: start, lte: end } },
+        { productionDate: null, startTime: { gte: start, lte: end } },
+        { productionDate: null, startTime: null, createdAt: { gte: start, lte: end } },
+      ],
+    });
+  }
+
+  if (params.lineId) parts.push({ lineId: params.lineId });
+  if (params.changeoverTypeId) parts.push({ changeoverTypeId: params.changeoverTypeId });
+  if (params.kind === 'PLANNED' || params.kind === 'UNPLANNED') {
+    parts.push({ kind: params.kind });
+  }
+
+  if (parts.length === 0) return { deletedAt: null };
+  return { deletedAt: null, AND: parts };
+}
+
+export async function listChangeovers(
+  params: {
+    from?: string;
+    to?: string;
+    lineId?: string;
+    changeoverTypeId?: string;
+    kind?: string;
+  } = {},
+  user?: AuthUser,
+) {
   return prisma.changeoverEntry.findMany({
-    where,
+    where: changeoverListWhere(params, user),
     include: changeoverInclude,
     orderBy: [{ productionDate: 'desc' }, { startTime: 'desc' }, { createdAt: 'desc' }],
   });
 }
 
-export async function exportChangeoversExcel(user?: AuthUser) {
-  const items = await listChangeovers(user);
+export async function exportChangeoversExcel(
+  params: {
+    from?: string;
+    to?: string;
+    lineId?: string;
+    changeoverTypeId?: string;
+    kind?: string;
+  } = {},
+  user?: AuthUser,
+) {
+  const items = await listChangeovers(params, user);
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Production Management System';
   const sheet = workbook.addWorksheet('Changeover Details');

@@ -133,6 +133,7 @@ export const productionPlanSchema = z.object({
   supervisorId: z.string().optional().nullable(),
   status: z.nativeEnum(PlanStatus).optional(),
   remarks: z.string().optional().nullable(),
+  allowOverlap: z.boolean().optional(),
 });
 
 export const productionEntrySchema = z.object({

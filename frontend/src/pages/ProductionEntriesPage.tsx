@@ -264,7 +264,8 @@ export default function ProductionEntriesPage() {
 
   const plans = useQuery({
     queryKey: ['plans-entries', exportFrom, exportTo, reportShiftId],
-    enabled: exportRangeValid,
+    // Work orders belong to a shift — only load after a shift is chosen
+    enabled: exportRangeValid && Boolean(reportShiftId),
     queryFn: async () =>
       (
         await api.get<
@@ -282,8 +283,52 @@ export default function ProductionEntriesPage() {
             limit: 100,
             from: exportFrom,
             to: exportTo,
-            ...(reportShiftId ? { shiftId: reportShiftId } : {}),
+            shiftId: reportShiftId,
           },
+        })
+      ).data.data,
+    retry: 2,
+    retryDelay: (n) => Math.min(1000 * 2 ** n, 4000),
+    refetchOnReconnect: true,
+    placeholderData: keepPreviousData,
+  });
+
+  const allShiftsSelected = !reportShiftId;
+  const planOptions = reportShiftId ? (plans.data ?? []) : [];
+
+  const shiftTotals = useQuery({
+    queryKey: ['production-shift-totals', exportFrom, exportTo],
+    enabled: exportRangeValid && allShiftsSelected,
+    queryFn: async () =>
+      (
+        await api.get<
+          ApiResponse<{
+            from: string;
+            to: string;
+            shifts: Array<{
+              shiftId: string;
+              shiftName: string;
+              shiftCode: string;
+              planCount: number;
+              plannedCases: number;
+              actualCases: number;
+              goodCases: number;
+              rejectCases: number;
+              lossCases: number;
+              downtimeMins: number;
+            }>;
+            totals: {
+              planCount: number;
+              plannedCases: number;
+              actualCases: number;
+              goodCases: number;
+              rejectCases: number;
+              lossCases: number;
+              downtimeMins: number;
+            };
+          }>
+        >('/production-entries/shift-totals', {
+          params: { from: exportFrom, to: exportTo },
         })
       ).data.data,
     retry: 2,
@@ -316,17 +361,26 @@ export default function ProductionEntriesPage() {
     if (plan.data.shift?.id) setReportShiftId(plan.data.shift.id);
   }, [initialPlanId, plan.data?.id, plan.data?.productionDate, plan.data?.shift?.id]);
 
-  // Keep selected work order within the filtered list; clear when list fails or is empty
+  // Keep selected work order within the filtered list; clear when no shift / list fails / empty
   useEffect(() => {
-    if (plans.isLoading) return;
-    if (plans.isError) {
-      // Stop hammering /plans/:id while list is down
+    // Wait for deep-link date/shift sync before clearing or replacing selection
+    if (initialPlanId && planId === initialPlanId && !didInitDateFromPlan.current) return;
+
+    if (!reportShiftId) {
+      if (!planId) return;
+      setPlanId('');
+      setSearchParams({}, { replace: true });
+      setEditingEntryId(null);
+      setEditingDowntimeId(null);
+      setProdForm({});
+      setDtForm({});
       return;
     }
+
+    if (plans.isLoading) return;
+    if (plans.isError) return;
     if (!plans.data) return;
     if (planId && plans.data.some((x) => x.id === planId)) return;
-    // Wait for deep-link date sync before replacing selection
-    if (initialPlanId && planId === initialPlanId && !didInitDateFromPlan.current) return;
 
     const nextId = plans.data[0]?.id || '';
     if (nextId === planId) return;
@@ -336,7 +390,7 @@ export default function ProductionEntriesPage() {
       setEditingEntryId(null);
       setEditingDowntimeId(null);
     }
-  }, [plans.data, plans.isLoading, plans.isError, planId, initialPlanId, setSearchParams]);
+  }, [reportShiftId, plans.data, plans.isLoading, plans.isError, planId, initialPlanId, setSearchParams]);
 
   const MACHINE_ORDER = [
     'Raw Water Pump',
@@ -627,6 +681,7 @@ export default function ProductionEntriesPage() {
         timeTo: slot.to,
       }));
       await qc.invalidateQueries({ queryKey: ['plan', planId] });
+      await qc.invalidateQueries({ queryKey: ['production-shift-totals'] });
     },
     onError: (e: unknown) =>
       toast.error((e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message || 'Save failed'),
@@ -648,6 +703,7 @@ export default function ProductionEntriesPage() {
         }));
       }
       await qc.invalidateQueries({ queryKey: ['plan', planId] });
+      await qc.invalidateQueries({ queryKey: ['production-shift-totals'] });
     },
     onError: (e: unknown) =>
       toast.error((e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message || 'Delete failed'),
@@ -725,6 +781,7 @@ export default function ProductionEntriesPage() {
         actionPlan: '',
       });
       await qc.invalidateQueries({ queryKey: ['plan', planId] });
+      await qc.invalidateQueries({ queryKey: ['production-shift-totals'] });
     },
     onError: (e: unknown) => {
       const apiMsg = (e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message;
@@ -742,6 +799,7 @@ export default function ProductionEntriesPage() {
         setDtForm({});
       }
       await qc.invalidateQueries({ queryKey: ['plan', planId] });
+      await qc.invalidateQueries({ queryKey: ['production-shift-totals'] });
     },
     onError: (e: unknown) =>
       toast.error((e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message || 'Delete failed'),
@@ -986,6 +1044,7 @@ export default function ProductionEntriesPage() {
             <select
               className={FILTER_CTRL}
               value={planId}
+              disabled={allShiftsSelected}
               onChange={(e) => {
                 setPlanId(e.target.value);
                 setSearchParams(e.target.value ? { planId: e.target.value } : {});
@@ -995,8 +1054,10 @@ export default function ProductionEntriesPage() {
                 setEditingDowntimeId(null);
               }}
             >
-              <option value="">Select a work order...</option>
-              {(plans.data ?? []).map((item) => (
+              <option value="">
+                {allShiftsSelected ? 'Select a shift to pick work order...' : 'Select a work order...'}
+              </option>
+              {planOptions.map((item) => (
                 <option key={item.id} value={item.id}>
                   {formatWorkOrder(item.planNumber)} — {item.line?.code || item.line?.name} / {item.shift?.name} /{' '}
                   {String(item.productionDate || '').slice(0, 10)}
@@ -1008,6 +1069,11 @@ export default function ProductionEntriesPage() {
         {!exportRangeValid ? (
           <p className="mt-2 text-xs" style={{ color: 'var(--danger)' }}>
             From date must be on or before To date.
+          </p>
+        ) : null}
+        {exportRangeValid && allShiftsSelected ? (
+          <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+            Showing total production for all shifts. Pick a shift to enter hourly data for a work order.
           </p>
         ) : null}
         {plans.isError ? (
@@ -1023,25 +1089,138 @@ export default function ProductionEntriesPage() {
             </button>
           </div>
         ) : null}
-        {exportRangeValid && !plans.isLoading && !plans.isError && (plans.data?.length ?? 0) === 0 ? (
+        {exportRangeValid &&
+        reportShiftId &&
+        !plans.isLoading &&
+        !plans.isError &&
+        planOptions.length === 0 ? (
           <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
             No work orders in this range. Change dates/shift or create a work order.
           </p>
         ) : null}
-        {exportRangeValid && !plans.isError && (plans.data?.length ?? 0) > 0 ? (
+        {exportRangeValid && reportShiftId && !plans.isError && planOptions.length > 0 ? (
           <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
-            {plans.data?.length ?? 0} work order{(plans.data?.length ?? 0) === 1 ? '' : 's'}
+            {planOptions.length} work order{planOptions.length === 1 ? '' : 's'}
             {plans.isFetching ? ' · updating…' : ''}
           </p>
         ) : null}
-        {plans.isLoading ? (
+        {reportShiftId && plans.isLoading ? (
           <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
             Loading work orders…
           </p>
         ) : null}
       </div>
 
-      {plans.isError ? (
+      {allShiftsSelected ? (
+        !exportRangeValid ? null : shiftTotals.isLoading && !shiftTotals.data ? (
+          <LoadingBlock />
+        ) : shiftTotals.isError ? (
+          <div className="panel p-4 text-sm" style={{ color: 'var(--danger)' }}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span>Could not load shift production totals.</span>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => void shiftTotals.refetch()}
+                disabled={shiftTotals.isFetching}
+              >
+                {shiftTotals.isFetching ? 'Retrying…' : 'Retry'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <KpiCard
+                label="Work Orders"
+                value={String(shiftTotals.data?.totals.planCount ?? 0)}
+                hint={
+                  exportFrom === exportTo
+                    ? exportFrom
+                    : `${exportFrom} → ${exportTo}`
+                }
+              />
+              <KpiCard
+                label="Planned Cases"
+                value={(shiftTotals.data?.totals.plannedCases ?? 0).toLocaleString()}
+              />
+              <KpiCard
+                label="Total Production"
+                value={(shiftTotals.data?.totals.actualCases ?? 0).toLocaleString()}
+              />
+              <KpiCard
+                label="Loss / Downtime"
+                value={`${(shiftTotals.data?.totals.lossCases ?? 0).toLocaleString()} / ${shiftTotals.data?.totals.downtimeMins ?? 0}m`}
+                tone="warn"
+              />
+            </div>
+
+            <div className="panel p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-semibold">Shift Total Production</h3>
+                {shiftTotals.isFetching ? (
+                  <span className="text-xs" style={{ color: 'var(--muted)' }}>
+                    Updating…
+                  </span>
+                ) : null}
+              </div>
+              {(shiftTotals.data?.shifts.length ?? 0) === 0 ? (
+                <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                  No production in this date range.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[40rem] text-left text-sm">
+                    <thead>
+                      <tr className="border-b text-xs uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                        <th className="py-2 pr-3 font-medium">Shift</th>
+                        <th className="py-2 pr-3 font-medium">Work Orders</th>
+                        <th className="py-2 pr-3 font-medium">Planned</th>
+                        <th className="py-2 pr-3 font-medium">Production</th>
+                        <th className="py-2 pr-3 font-medium">Accepted</th>
+                        <th className="py-2 pr-3 font-medium">Loss</th>
+                        <th className="py-2 font-medium">Downtime</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shiftTotals.data?.shifts.map((row) => (
+                        <tr key={row.shiftId} className="border-b last:border-0" style={{ borderColor: 'var(--border)' }}>
+                          <td className="py-2.5 pr-3 font-medium">{row.shiftName}</td>
+                          <td className="py-2.5 pr-3">{row.planCount}</td>
+                          <td className="py-2.5 pr-3">{row.plannedCases.toLocaleString()}</td>
+                          <td className="py-2.5 pr-3">{row.actualCases.toLocaleString()}</td>
+                          <td className="py-2.5 pr-3">{row.goodCases.toLocaleString()}</td>
+                          <td className="py-2.5 pr-3">{row.lossCases.toLocaleString()}</td>
+                          <td className="py-2.5">{row.downtimeMins}m</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t font-semibold" style={{ borderColor: 'var(--border)' }}>
+                        <td className="py-2.5 pr-3">All shifts</td>
+                        <td className="py-2.5 pr-3">{shiftTotals.data?.totals.planCount ?? 0}</td>
+                        <td className="py-2.5 pr-3">
+                          {(shiftTotals.data?.totals.plannedCases ?? 0).toLocaleString()}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          {(shiftTotals.data?.totals.actualCases ?? 0).toLocaleString()}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          {(shiftTotals.data?.totals.goodCases ?? 0).toLocaleString()}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          {(shiftTotals.data?.totals.lossCases ?? 0).toLocaleString()}
+                        </td>
+                        <td className="py-2.5">{shiftTotals.data?.totals.downtimeMins ?? 0}m</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )
+      ) : plans.isError ? (
         <div className="panel p-6 text-sm" style={{ color: 'var(--muted)' }}>
           Fix the connection above, then retry. Work-order entry will appear once the list loads.
         </div>

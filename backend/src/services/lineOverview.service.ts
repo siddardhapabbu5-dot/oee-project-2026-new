@@ -7,7 +7,6 @@ import {
   calcLoss,
   computeOeeMetrics,
   isPlannedProductionLossCategory,
-  splitDowntimeMins,
 } from '../utils/oee.js';
 
 function planScope(user?: AuthUser) {
@@ -35,6 +34,65 @@ function dayBounds(date?: string, from?: string, to?: string) {
   const end = to ? new Date(`${to.slice(0, 10)}T23:59:59.999Z`) : new Date();
   if (!to) end.setHours(23, 59, 59, 999);
   return { start, end };
+}
+
+type PlanAgg = {
+  actual: number;
+  good: number;
+  reject: number;
+  downtime: number;
+  plannedLoss: number;
+};
+
+function emptyPlanAgg(): PlanAgg {
+  return { actual: 0, good: 0, reject: 0, downtime: 0, plannedLoss: 0 };
+}
+
+/** Aggregate production + downtime per plan via SQL groupBy (avoids nested entry includes). */
+async function loadPlanEntryAggs(planIds: string[]) {
+  const byPlan = new Map<string, PlanAgg>();
+  if (planIds.length === 0) return byPlan;
+
+  const [entryAggs, dtByPlanCategory] = await Promise.all([
+    prisma.productionEntry.groupBy({
+      by: ['planId'],
+      where: { deletedAt: null, status: { not: 'REJECTED' }, planId: { in: planIds } },
+      _sum: { actualCases: true, goodCases: true, rejectCases: true },
+    }),
+    prisma.downtimeEntry.groupBy({
+      by: ['planId', 'categoryId'],
+      where: { deletedAt: null, planId: { in: planIds } },
+      _sum: { durationMins: true },
+    }),
+  ]);
+
+  for (const row of entryAggs) {
+    const a = byPlan.get(row.planId) ?? emptyPlanAgg();
+    a.actual = Number(row._sum.actualCases ?? 0);
+    a.good = Number(row._sum.goodCases ?? 0);
+    a.reject = Number(row._sum.rejectCases ?? 0);
+    byPlan.set(row.planId, a);
+  }
+
+  const categoryIds = [...new Set(dtByPlanCategory.map((r) => r.categoryId))];
+  const categories = categoryIds.length
+    ? await prisma.downtimeCategory.findMany({
+        where: { id: { in: categoryIds } },
+        select: { id: true, name: true, code: true },
+      })
+    : [];
+  const catMeta = new Map(categories.map((c) => [c.id, c]));
+
+  for (const row of dtByPlanCategory) {
+    const mins = Number(row._sum.durationMins ?? 0);
+    const a = byPlan.get(row.planId) ?? emptyPlanAgg();
+    a.downtime += mins;
+    const meta = catMeta.get(row.categoryId);
+    if (isPlannedProductionLossCategory(meta?.name, meta?.code)) a.plannedLoss += mins;
+    byPlan.set(row.planId, a);
+  }
+
+  return byPlan;
 }
 
 type LineAgg = {
@@ -78,16 +136,19 @@ export async function getLineWiseOverview(
       ...(filters.plantId ? { plantId: filters.plantId } : {}),
       ...planScope(user),
     },
-    include: {
-      plant: true,
-      line: true,
-      shift: true,
-      product: true,
-      productionEntries: { where: { deletedAt: null, status: { not: 'REJECTED' } } },
-      downtimeEntries: { where: { deletedAt: null }, include: { category: true } },
+    select: {
+      id: true,
+      lineId: true,
+      plannedCases: true,
+      plannedOperatingMins: true,
+      productionDate: true,
+      plant: { select: { id: true, name: true } },
+      line: { select: { id: true, code: true, name: true, capacityCph: true } },
     },
     orderBy: [{ productionDate: 'asc' }, { createdAt: 'asc' }],
   });
+
+  const byPlan = await loadPlanEntryAggs(plans.map((p) => p.id));
 
   const lineMap = new Map<string, LineAgg>();
   const dayTrend = new Map<
@@ -122,12 +183,13 @@ export async function getLineWiseOverview(
     }
 
     const row = lineMap.get(key)!;
-    const actual = plan.productionEntries.reduce((s, e) => s + e.actualCases, 0);
-    const good = plan.productionEntries.reduce((s, e) => s + e.goodCases, 0);
-    const reject = plan.productionEntries.reduce((s, e) => s + e.rejectCases, 0);
-    const { plannedLossMins, unplannedDowntimeMins, totalDowntimeMins } = splitDowntimeMins(
-      plan.downtimeEntries,
-    );
+    const agg = byPlan.get(plan.id) ?? emptyPlanAgg();
+    const actual = agg.actual;
+    const good = agg.good;
+    const reject = agg.reject;
+    const plannedLossMins = agg.plannedLoss;
+    const unplannedDowntimeMins = Math.max(0, agg.downtime - agg.plannedLoss);
+    const totalDowntimeMins = agg.downtime;
     const totalCount = actual || good + reject;
     const goodCount = good > 0 ? good : totalCount;
 
@@ -415,15 +477,19 @@ export async function getDayWiseOee(
       ...(filters.lineId ? { lineId: filters.lineId } : {}),
       ...planScope(user),
     },
-    include: {
-      plant: true,
-      line: true,
-      productionEntries: { where: { deletedAt: null, status: { not: 'REJECTED' } } },
-      downtimeEntries: { where: { deletedAt: null }, include: { category: true } },
+    select: {
+      id: true,
+      lineId: true,
+      plannedCases: true,
+      plannedOperatingMins: true,
+      productionDate: true,
+      plant: { select: { name: true } },
+      line: { select: { id: true, code: true, name: true } },
     },
     orderBy: [{ productionDate: 'asc' }, { createdAt: 'asc' }],
   });
 
+  const byPlan = await loadPlanEntryAggs(plans.map((p) => p.id));
   const map = new Map<string, DayLineAgg>();
 
   for (const plan of plans) {
@@ -447,18 +513,16 @@ export async function getDayWiseOee(
     }
 
     const row = map.get(key)!;
-    const actual = plan.productionEntries.reduce((s, e) => s + e.actualCases, 0);
-    const good = plan.productionEntries.reduce((s, e) => s + e.goodCases, 0);
-    const reject = plan.productionEntries.reduce((s, e) => s + e.rejectCases, 0);
-    const split = splitDowntimeMins(plan.downtimeEntries);
+    const agg = byPlan.get(plan.id) ?? emptyPlanAgg();
+    const unplannedDowntimeMins = Math.max(0, agg.downtime - agg.plannedLoss);
 
     row.scheduledMins += plan.plannedOperatingMins || 0;
-    row.plannedLossMins += split.plannedLossMins;
-    row.downtimeMins += split.unplannedDowntimeMins;
+    row.plannedLossMins += agg.plannedLoss;
+    row.downtimeMins += unplannedDowntimeMins;
     row.targetCases += plan.plannedCases || 0;
-    row.actualCases += actual;
-    row.goodCases += good;
-    row.rejectCases += reject;
+    row.actualCases += agg.actual;
+    row.goodCases += agg.good;
+    row.rejectCases += agg.reject;
   }
 
   const rows = [...map.values()]
@@ -623,51 +687,8 @@ export async function getWeekWiseOee(
     orderBy: { productionDate: 'asc' },
   });
 
-  const planIds = plans.map((p) => p.id);
-  type Agg = { actual: number; good: number; reject: number; downtime: number; plannedLoss: number };
-  const byPlan = new Map<string, Agg>();
-  const empty = (): Agg => ({ actual: 0, good: 0, reject: 0, downtime: 0, plannedLoss: 0 });
-
-  if (planIds.length > 0) {
-    const [entryAggs, dtByPlanCategory] = await Promise.all([
-      prisma.productionEntry.groupBy({
-        by: ['planId'],
-        where: { deletedAt: null, status: { not: 'REJECTED' }, planId: { in: planIds } },
-        _sum: { actualCases: true, goodCases: true, rejectCases: true },
-      }),
-      prisma.downtimeEntry.groupBy({
-        by: ['planId', 'categoryId'],
-        where: { deletedAt: null, planId: { in: planIds } },
-        _sum: { durationMins: true },
-      }),
-    ]);
-
-    for (const row of entryAggs) {
-      const a = byPlan.get(row.planId) ?? empty();
-      a.actual = Number(row._sum.actualCases ?? 0);
-      a.good = Number(row._sum.goodCases ?? 0);
-      a.reject = Number(row._sum.rejectCases ?? 0);
-      byPlan.set(row.planId, a);
-    }
-
-    const categoryIds = [...new Set(dtByPlanCategory.map((r) => r.categoryId))];
-    const categories = categoryIds.length
-      ? await prisma.downtimeCategory.findMany({
-          where: { id: { in: categoryIds } },
-          select: { id: true, name: true, code: true },
-        })
-      : [];
-    const catMeta = new Map(categories.map((c) => [c.id, c]));
-
-    for (const row of dtByPlanCategory) {
-      const mins = Number(row._sum.durationMins ?? 0);
-      const a = byPlan.get(row.planId) ?? empty();
-      a.downtime += mins;
-      const meta = catMeta.get(row.categoryId);
-      if (isPlannedProductionLossCategory(meta?.name, meta?.code)) a.plannedLoss += mins;
-      byPlan.set(row.planId, a);
-    }
-  }
+  const byPlan = await loadPlanEntryAggs(plans.map((p) => p.id));
+  const empty = emptyPlanAgg;
 
   const weekMap = new Map<1 | 2 | 3 | 4, WeekAgg>();
   for (const w of [1, 2, 3, 4] as const) {
