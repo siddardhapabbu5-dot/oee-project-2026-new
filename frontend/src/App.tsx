@@ -46,6 +46,7 @@ import WasteReportPage from './pages/WasteReportPage';
 import SalesDashboardPage from './pages/SalesDashboardPage';
 import RftDashboardPage from './pages/RftDashboardPage';
 import RftEntriesPage from './pages/RftEntriesPage';
+import Top5AnalysisPage from './pages/Top5AnalysisPage';
 import type { ReactNode } from 'react';
 
 function Protected({ children, path }: { children: ReactNode; path: string }) {
@@ -89,6 +90,7 @@ export default function App() {
           <Route path=":pillarId" element={<OeePillarPage />} />
         </Route>
         <Route path="plan-vs-actual" element={<Protected path="/plan-vs-actual"><PlanVsActualPage /></Protected>} />
+        <Route path="top5-analysis" element={<Protected path="/top5-analysis"><Top5AnalysisPage /></Protected>} />
         <Route path="users" element={<Protected path="/users"><UsersPage /></Protected>} />
         <Route path="plants" element={<Protected path="/plants"><PlantsPage /></Protected>} />
         <Route path="lines" element={<Protected path="/lines"><LinesPage /></Protected>} />

@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Gauge,
   ChartColumnIncreasing,
+  Trophy,
   Users,
   Factory,
   GitBranch,
@@ -54,6 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'OEE Dashboard', path: '/oee', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Overview', icon: Gauge },
   { label: 'OEE Guidance', path: '/oee-guidance', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: BookOpen },
   { label: 'Plan vs Actual', path: '/plan-vs-actual', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Overview', icon: ChartColumnIncreasing },
+  { label: 'Top 5 Analysis', path: '/top5-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: Trophy },
   { label: 'Users', path: '/users', roles: ['ADMIN'], group: 'Administration', icon: Users },
   { label: 'Plants', path: '/plants', roles: ['ADMIN'], group: 'Master Data', icon: Factory },
   { label: 'Production Lines', path: '/lines', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Master Data', icon: GitBranch },
@@ -205,6 +207,12 @@ export const SEARCH_KPIS: SearchKpi[] = [
     hint: 'Variance by day / product',
     path: '/plan-vs-actual',
     keywords: ['plan vs actual', 'variance', 'plan versus actual'],
+  },
+  {
+    label: 'Top 5 Analysis',
+    hint: 'Top products by volume, achievement & shortfall',
+    path: '/top5-analysis',
+    keywords: ['top 5', 'top5', 'ranking', 'best products', 'shortfall', 'achievement'],
   },
   {
     label: 'Changeover Time',

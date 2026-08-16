@@ -326,13 +326,16 @@ export function OeePage() {
         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             Planned Time:{' '}
-            <strong style={{ color: 'var(--text)' }}>{Math.round(k.plannedProductionTimeMins ?? 0)} min</strong>
+            <strong style={{ color: 'var(--text)' }}>
+              {((k.plannedProductionTimeMins ?? 0) / 60).toFixed(1)} h
+            </strong>
           </div>
           <div>
-            Run Time: <strong style={{ color: 'var(--text)' }}>{Math.round(k.runTimeMins ?? 0)} min</strong>
+            Run Time:{' '}
+            <strong style={{ color: 'var(--text)' }}>{((k.runTimeMins ?? 0) / 60).toFixed(1)} h</strong>
           </div>
           <div>
-            Downtime: <strong style={{ color: 'var(--text)' }}>{Math.round(k.downtime)} min</strong>
+            Downtime: <strong style={{ color: 'var(--text)' }}>{(k.downtime / 60).toFixed(1)} h</strong>
           </div>
           <div>
             Ideal Cycle:{' '}

@@ -73,6 +73,12 @@ type Charts = {
   capacityUtilization: Array<{ date: string; utilization: number }>;
 };
 
+/** Display minutes as hours (e.g. 8761 → "146.0 h") */
+function formatHoursFromMins(mins: number | null | undefined, digits = 1) {
+  if (mins == null || Number.isNaN(Number(mins))) return '—';
+  return `${(Number(mins) / 60).toFixed(digits)} h`;
+}
+
 /** Calendar week-of-month: 1–7 → 1, 8–14 → 2, 15–21 → 3, 22–end → 4 */
 function weekOfMonth(dateYmd: string): 1 | 2 | 3 | 4 {
   const day = Number(dateYmd.slice(0, 10).slice(8, 10));
@@ -544,30 +550,30 @@ export default function DashboardPage() {
             <div>
               Planned:{' '}
               <span className="font-semibold" style={{ color: 'var(--text)' }}>
-                {k.plannedProductionTimeMins ?? '—'} min
+                {formatHoursFromMins(k.plannedProductionTimeMins)}
               </span>
               {k.plannedLossMins && k.plannedLossMins > 0 ? (
                 <span className="mt-0.5 block text-[10px]">
-                  ({k.scheduledProductionTimeMins ?? '—'} − {k.plannedLossMins} PPL)
+                  ({formatHoursFromMins(k.scheduledProductionTimeMins)} − {formatHoursFromMins(k.plannedLossMins)} PPL)
                 </span>
               ) : null}
             </div>
             <div>
               Operating:{' '}
               <span className="font-semibold" style={{ color: 'var(--text)' }}>
-                {Math.round(k.runTimeMins ?? 0)} min
+                {formatHoursFromMins(k.runTimeMins)}
               </span>
             </div>
             <div>
               Unplanned DT:{' '}
               <span className="font-semibold" style={{ color: downtimeColor(k.downtime) }}>
-                {Math.round(k.downtime)} min
+                {formatHoursFromMins(k.downtime)}
               </span>
             </div>
             <div>
               Ideal Cycle:{' '}
               <span className="font-semibold" style={{ color: 'var(--text)' }}>
-                {k.idealCycleTimeMins != null ? `${Number(k.idealCycleTimeMins).toFixed(4)}` : '—'}
+                {k.idealCycleTimeMins != null ? `${Number(k.idealCycleTimeMins).toFixed(4)} min/case` : '—'}
               </span>
             </div>
           </div>
@@ -617,8 +623,8 @@ export default function DashboardPage() {
         <KpiCard size="sm" label="Capacity Util." value={`${k.capacityUtilization}%`} hint="Actual ÷ Planned Cases" icon={BarChart3} />
         <KpiCard
           size="sm"
-          label="Downtime (min)"
-          value={Math.round(k.downtime).toLocaleString()}
+          label="Downtime (h)"
+          value={formatHoursFromMins(k.downtime)}
           icon={Timer}
           tone={downtimeTone(k.downtime)}
           hint={
@@ -631,7 +637,12 @@ export default function DashboardPage() {
                   : '>30 min · Poor'
           }
         />
-        <KpiCard size="sm" label="Operating Time (min)" value={Math.round(k.runTimeMins ?? 0).toLocaleString()} icon={Clock3} />
+        <KpiCard
+          size="sm"
+          label="Operating Time (h)"
+          value={formatHoursFromMins(k.runTimeMins)}
+          icon={Clock3}
+        />
       </div>
 
       <div className="mt-3 grid gap-3 xl:grid-cols-2">
