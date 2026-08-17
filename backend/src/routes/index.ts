@@ -623,6 +623,20 @@ router.get('/rft-entries', authenticate, asyncHandler(async (req, res) => {
   );
 }));
 
+router.get('/rft-entries/production-source', authenticate, asyncHandler(async (req, res) => {
+  success(
+    res,
+    await rftService.getProductionSourceForRft(
+      {
+        date: String(req.query.date || ''),
+        shiftId: String(req.query.shiftId || ''),
+        lineId: typeof req.query.lineId === 'string' && req.query.lineId ? req.query.lineId : undefined,
+      },
+      req.user,
+    ),
+  );
+}));
+
 router.get('/rft-entries/:id', authenticate, asyncHandler(async (req, res) => {
   success(res, await rftService.getRftEntry(idParam(req), req.user));
 }));

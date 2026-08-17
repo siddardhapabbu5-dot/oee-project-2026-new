@@ -89,6 +89,19 @@ const entryInclude = {
   },
 } satisfies Prisma.RftEntryInclude;
 
+function scopePlans(user?: AuthUser): Prisma.ProductionPlanWhereInput {
+  if (!user) return {};
+  if (user.role === 'LINE_SUPERVISOR') {
+    return {
+      OR: [{ supervisorId: user.id }, { line: { supervisorId: user.id } }],
+    };
+  }
+  if (user.role === 'PRODUCTION_MANAGER' && user.plantId) {
+    return { plantId: user.plantId };
+  }
+  return {};
+}
+
 function scopeLines(user?: AuthUser): Prisma.RftEntryWhereInput {
   if (!user) return {};
   if (user.role === 'LINE_SUPERVISOR') {
@@ -98,6 +111,84 @@ function scopeLines(user?: AuthUser): Prisma.RftEntryWhereInput {
     return { OR: [{ plantId: user.plantId }, { line: { plantId: user.plantId } }] };
   }
   return {};
+}
+
+/** Shop-floor production (plans + hourly totals) for a date/shift — used to prefill RFT entries. */
+export async function getProductionSourceForRft(
+  params: { date: string; shiftId: string; lineId?: string },
+  user?: AuthUser,
+) {
+  const day = String(params.date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    throw new ValidationError('Valid date is required (YYYY-MM-DD)');
+  }
+  if (!params.shiftId) throw new ValidationError('Shift is required');
+
+  const { start, end } = calendarDateRange(day, day);
+
+  const plans = await prisma.productionPlan.findMany({
+    where: {
+      deletedAt: null,
+      ...scopePlans(user),
+      shiftId: params.shiftId,
+      productionDate: { gte: start, lte: end },
+      ...(params.lineId ? { lineId: params.lineId } : {}),
+    },
+    include: {
+      line: { select: { id: true, code: true, name: true } },
+      shift: { select: { id: true, name: true, code: true } },
+      product: { select: { id: true, name: true, brand: { select: { name: true } } } },
+      sku: { select: { id: true, code: true, name: true, packVolume: true } },
+      productionEntries: {
+        where: { deletedAt: null },
+        select: { plannedCases: true, actualCases: true, goodCases: true, rejectCases: true },
+      },
+    },
+    orderBy: [{ line: { code: 'asc' } }, { planNumber: 'asc' }],
+  });
+
+  const rows = plans.map((p) => {
+    const plannedCases = p.productionEntries.reduce((s, e) => s + (e.plannedCases || 0), 0) || p.plannedCases || 0;
+    const actualCases = p.productionEntries.reduce((s, e) => s + (e.actualCases || 0), 0);
+    const goodCases = p.productionEntries.reduce((s, e) => s + (e.goodCases || 0), 0);
+    const rejectCases = p.productionEntries.reduce((s, e) => s + (e.rejectCases || 0), 0);
+    const productLabel = p.product.brand?.name
+      ? `${p.product.brand.name} — ${p.product.name}`
+      : p.product.name;
+    const skuLabel = p.sku.packVolume || p.sku.name || p.sku.code;
+    return {
+      planId: p.id,
+      planNumber: p.planNumber,
+      entryDate: toCalendarDate(p.productionDate),
+      lineId: p.lineId,
+      lineCode: p.line.code || p.line.name,
+      shiftId: p.shiftId,
+      shiftName: p.shift.name,
+      productId: p.productId,
+      productName: productLabel,
+      skuId: p.skuId,
+      skuLabel,
+      plannedCases: Number(plannedCases.toFixed(2)),
+      actualCases: Number(actualCases.toFixed(2)),
+      goodCases: Number(goodCases.toFixed(2)),
+      rejectCases: Number(rejectCases.toFixed(2)),
+      hourCount: p.productionEntries.length,
+      /** Prefer actual production qty for RFT Total Produced */
+      totalProduced: Number(actualCases.toFixed(2)),
+    };
+  });
+
+  return {
+    date: day,
+    shiftId: params.shiftId,
+    rows,
+    totals: {
+      planCount: rows.length,
+      actualCases: Number(rows.reduce((s, r) => s + r.actualCases, 0).toFixed(2)),
+      goodCases: Number(rows.reduce((s, r) => s + r.goodCases, 0).toFixed(2)),
+      rejectCases: Number(rows.reduce((s, r) => s + r.rejectCases, 0).toFixed(2)),
+    },
+  };
 }
 
 export async function ensureRejectAreas() {
@@ -520,7 +611,7 @@ export async function getRftDashboard(
       pct: totalReject > 0 ? Number(((t.quantity / totalReject) * 100).toFixed(1)) : 0,
     }));
 
-  const rftTarget = 98;
+  const rftTarget = 99.5;
   const dailyTrend = [...byDay.entries()]
     .map(([date, v]) => ({
       date,
@@ -564,19 +655,39 @@ export async function getRftDashboard(
   let beforeRej = 0;
   let afterProd = 0;
   let afterRej = 0;
+  const beforeArea: Record<string, number> = {};
+  const afterArea: Record<string, number> = {};
+  for (const a of areas) {
+    beforeArea[a.code] = 0;
+    afterArea[a.code] = 0;
+  }
   for (const e of shaped) {
     const t = new Date(`${e.entryDate}T12:00:00`).getTime();
-    if (t <= midMs) {
+    const bucket = t <= midMs ? 'before' : 'after';
+    if (bucket === 'before') {
       beforeProd += e.totalProduced;
       beforeRej += e.totalReject;
+      for (const [code, qty] of Object.entries(e.byArea)) beforeArea[code] = (beforeArea[code] ?? 0) + qty;
     } else {
       afterProd += e.totalProduced;
       afterRej += e.totalReject;
+      for (const [code, qty] of Object.entries(e.byArea)) afterArea[code] = (afterArea[code] ?? 0) + qty;
     }
   }
+  const beforeM = metricOf(beforeProd, beforeRej);
+  const afterM = metricOf(afterProd, afterRej);
   const kaizen = [
-    { name: 'Before', ...metricOf(beforeProd, beforeRej) },
-    { name: 'After', ...metricOf(afterProd, afterRej) },
+    { name: 'Before', ...beforeM },
+    { name: 'After', ...afterM },
+  ];
+  const kaizenCompare = [
+    { metric: 'RFT %', before: beforeM.rft, after: afterM.rft },
+    { metric: 'Total Reject', before: beforeRej, after: afterRej },
+    ...areas.map((a) => ({
+      metric: a.shortLabel,
+      before: beforeArea[a.code] ?? 0,
+      after: afterArea[a.code] ?? 0,
+    })),
   ];
 
   const heatmapArea = [...heatDayArea.entries()]
@@ -616,6 +727,7 @@ export async function getRftDashboard(
       totalProduced,
       totalReject,
       firstTimeGood,
+      reworkQty: 0,
       rft,
       defectRate,
       entryCount: shaped.length,
@@ -651,6 +763,7 @@ export async function getRftDashboard(
     byType,
     composition: byArea.filter((a) => a.quantity > 0),
     kaizen,
+    kaizenCompare,
     heatmapArea,
     heatmapShift,
     heatmapShiftNames: shiftNames,

@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import api, { type ApiResponse } from '../lib/api';
 import { FilterBar, FilterField, FILTER_CTRL } from '../components/FilterBar';
@@ -41,6 +41,26 @@ type RftRow = {
   }>;
 };
 
+type ProductionSourceRow = {
+  planId: string;
+  planNumber: string;
+  entryDate: string;
+  lineId: string;
+  lineCode: string;
+  shiftId: string;
+  shiftName: string;
+  productId: string;
+  productName: string;
+  skuId: string;
+  skuLabel: string;
+  plannedCases: number;
+  actualCases: number;
+  goodCases: number;
+  rejectCases: number;
+  hourCount: number;
+  totalProduced: number;
+};
+
 function localYmd(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
@@ -64,6 +84,8 @@ export default function RftEntriesPage() {
   const [filterShiftId, setFilterShiftId] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showTypes, setShowTypes] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const autoFilledKey = useRef('');
 
   const [form, setForm] = useState({
     entryDate: localYmd(),
@@ -118,6 +140,29 @@ export default function RftEntriesPage() {
     staleTime: 300_000,
   });
 
+  const productionSource = useQuery({
+    queryKey: ['rft-production-source', form.entryDate, form.shiftId, form.lineId],
+    enabled: Boolean(form.entryDate && form.shiftId) && !editingId,
+    queryFn: async () =>
+      (
+        await api.get<
+          ApiResponse<{
+            date: string;
+            shiftId: string;
+            rows: ProductionSourceRow[];
+            totals: { planCount: number; actualCases: number; goodCases: number; rejectCases: number };
+          }>
+        >('/rft-entries/production-source', {
+          params: {
+            date: form.entryDate,
+            shiftId: form.shiftId,
+            ...(form.lineId ? { lineId: form.lineId } : {}),
+          },
+        })
+      ).data.data,
+    placeholderData: keepPreviousData,
+  });
+
   const entries = useQuery({
     queryKey: ['rft-entries', from, to, filterLineId, filterShiftId],
     queryFn: async () =>
@@ -133,6 +178,52 @@ export default function RftEntriesPage() {
       ).data.data,
     placeholderData: keepPreviousData,
   });
+
+  function applyProductionRow(row: ProductionSourceRow) {
+    setSelectedPlanId(row.planId);
+    setForm((prev) => ({
+      ...prev,
+      entryDate: row.entryDate.slice(0, 10),
+      shiftId: row.shiftId,
+      lineId: row.lineId,
+      productId: row.productId,
+      skuId: row.skuId,
+      totalProduced: String(row.totalProduced || row.actualCases || 0),
+    }));
+  }
+
+  // When date + shift selected, load production and auto-fill if only one work order
+  useEffect(() => {
+    if (editingId) return;
+    const rows = productionSource.data?.rows ?? [];
+    const key = `${form.entryDate}|${form.shiftId}|${form.lineId}`;
+    if (!form.entryDate || !form.shiftId) {
+      autoFilledKey.current = '';
+      setSelectedPlanId('');
+      return;
+    }
+    if (productionSource.isFetching) return;
+    if (rows.length === 1 && autoFilledKey.current !== key) {
+      autoFilledKey.current = key;
+      applyProductionRow(rows[0]);
+      return;
+    }
+    if (rows.length !== 1) {
+      autoFilledKey.current = key;
+      // Clear stale product/sku/produced when date/shift changed and multiple/none
+      if (selectedPlanId && !rows.some((r) => r.planId === selectedPlanId)) {
+        setSelectedPlanId('');
+      }
+    }
+  }, [
+    editingId,
+    form.entryDate,
+    form.shiftId,
+    form.lineId,
+    productionSource.data?.rows,
+    productionSource.isFetching,
+    selectedPlanId,
+  ]);
 
   const PACK_VOLUME_ORDER = ['200 ML', '250 ML', '300 ML', '500 ML', '750 ML', '1000 ML', '2000 ML', 'Jar-20L'];
 
@@ -209,6 +300,8 @@ export default function RftEntriesPage() {
 
   function resetForm() {
     setEditingId(null);
+    setSelectedPlanId('');
+    autoFilledKey.current = '';
     setForm({
       entryDate: localYmd(),
       lineId: '',
@@ -224,6 +317,8 @@ export default function RftEntriesPage() {
 
   function startEdit(row: RftRow) {
     setEditingId(row.id);
+    setSelectedPlanId('');
+    autoFilledKey.current = '';
     setForm({
       entryDate: row.entryDate.slice(0, 10),
       lineId: row.lineId,
@@ -353,14 +448,36 @@ export default function RftEntriesPage() {
               type="date"
               value={form.entryDate}
               max={localYmd()}
-              onChange={(e) => setForm({ ...form, entryDate: e.target.value })}
+              onChange={(e) => {
+                autoFilledKey.current = '';
+                setSelectedPlanId('');
+                setForm({
+                  ...form,
+                  entryDate: e.target.value,
+                  lineId: '',
+                  productId: '',
+                  skuId: '',
+                  totalProduced: '',
+                });
+              }}
             />
           </Field>
           <Field label="Shift" className="mb-0">
             <select
               className="input"
               value={form.shiftId}
-              onChange={(e) => setForm({ ...form, shiftId: e.target.value })}
+              onChange={(e) => {
+                autoFilledKey.current = '';
+                setSelectedPlanId('');
+                setForm({
+                  ...form,
+                  shiftId: e.target.value,
+                  lineId: '',
+                  productId: '',
+                  skuId: '',
+                  totalProduced: '',
+                });
+              }}
             >
               <option value="">Select…</option>
               {(shifts.data ?? []).map((s) => (
@@ -374,7 +491,17 @@ export default function RftEntriesPage() {
             <select
               className="input"
               value={form.lineId}
-              onChange={(e) => setForm({ ...form, lineId: e.target.value })}
+              onChange={(e) => {
+                autoFilledKey.current = '';
+                setSelectedPlanId('');
+                setForm({
+                  ...form,
+                  lineId: e.target.value,
+                  productId: '',
+                  skuId: '',
+                  totalProduced: '',
+                });
+              }}
             >
               <option value="">Select…</option>
               {(lines.data ?? []).map((l) => (
@@ -432,6 +559,81 @@ export default function RftEntriesPage() {
             />
           </Field>
         </div>
+
+        {!editingId && form.entryDate && form.shiftId ? (
+          <div className="mt-4 rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'var(--surface-2, #f8fafc)' }}>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                Shift production (from Production Entries)
+              </h4>
+              {productionSource.isFetching ? (
+                <span className="text-xs" style={{ color: 'var(--muted)' }}>
+                  Loading…
+                </span>
+              ) : null}
+            </div>
+            {productionSource.isError ? (
+              <p className="text-sm" style={{ color: 'var(--danger)' }}>
+                Could not load production for this date/shift.
+              </p>
+            ) : (productionSource.data?.rows.length ?? 0) === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                No work orders / hourly production found for this date and shift. Enter details manually, or capture
+                production first.
+              </p>
+            ) : (
+              <div className="table-wrap overflow-x-auto">
+                <table className="data text-sm">
+                  <thead>
+                    <tr>
+                      <th>Plan</th>
+                      <th>Line</th>
+                      <th>Product</th>
+                      <th>SKU</th>
+                      <th>Actual</th>
+                      <th>Good</th>
+                      <th>Reject</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(productionSource.data?.rows ?? []).map((row) => (
+                      <tr
+                        key={row.planId}
+                        className={selectedPlanId === row.planId ? 'font-medium' : undefined}
+                        style={
+                          selectedPlanId === row.planId
+                            ? { background: 'color-mix(in srgb, var(--primary, #2563eb) 8%, transparent)' }
+                            : undefined
+                        }
+                      >
+                        <td>{row.planNumber}</td>
+                        <td>{row.lineCode}</td>
+                        <td>{row.productName}</td>
+                        <td>{row.skuLabel}</td>
+                        <td className="tabular-nums">{row.actualCases.toLocaleString()}</td>
+                        <td className="tabular-nums">{row.goodCases.toLocaleString()}</td>
+                        <td className="tabular-nums">{row.rejectCases.toLocaleString()}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-secondary px-2 py-1 text-xs"
+                            onClick={() => applyProductionRow(row)}
+                          >
+                            {selectedPlanId === row.planId ? 'Selected' : 'Use'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-2 text-xs" style={{ color: 'var(--muted)' }}>
+                  Select a row to fill Line, Product, SKU and Total Produced (actual cases). Then enter area-wise rejects.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <div className="mt-4 rounded-xl border p-3" style={{ borderColor: 'var(--border)' }}>
           <h4 className="mb-3 text-sm font-semibold uppercase tracking-wide" style={{ color: 'var(--muted)' }}>

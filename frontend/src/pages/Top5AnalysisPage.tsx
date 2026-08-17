@@ -53,6 +53,8 @@ type PvaPayload = {
 type RankRow = {
   rank: number;
   name: string;
+  product: string;
+  sku: string;
   planned: number;
   actual: number;
   variance: number;
@@ -63,9 +65,19 @@ function localYmd(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function monthStart() {
+function currentMonth() {
   const d = new Date();
-  return localYmd(new Date(d.getFullYear(), d.getMonth(), 1));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** First → last day of YYYY-MM (to capped at today for current month). */
+function rangeForMonth(ym: string) {
+  const [y, m] = ym.split('-').map(Number);
+  if (!y || !m) return { from: localYmd(), to: localYmd() };
+  const from = localYmd(new Date(y, m - 1, 1));
+  const last = localYmd(new Date(y, m, 0));
+  const today = localYmd();
+  return { from, to: last > today ? today : last };
 }
 
 function achievementOf(planned: number, actual: number) {
@@ -97,7 +109,8 @@ function RankTable({
           <thead>
             <tr>
               <th>#</th>
-              <th>Product / SKU</th>
+              <th>Product</th>
+              <th>SKU</th>
               <th>Planned</th>
               <th>Actual</th>
               <th>Variance</th>
@@ -107,15 +120,16 @@ function RankTable({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ color: 'var(--muted)' }}>
+                <td colSpan={7} style={{ color: 'var(--muted)' }}>
                   No data in this range
                 </td>
               </tr>
             ) : (
               rows.map((r) => (
-                <tr key={`${title}-${r.rank}-${r.name}`}>
+                <tr key={`${title}-${r.rank}-${r.product}-${r.sku}`}>
                   <td className="font-semibold">{r.rank}</td>
-                  <td className="font-medium">{r.name}</td>
+                  <td className="font-medium">{r.product}</td>
+                  <td>{r.sku}</td>
                   <td className="tabular-nums">{r.planned.toLocaleString()}</td>
                   <td className="tabular-nums">{r.actual.toLocaleString()}</td>
                   <td
@@ -152,8 +166,10 @@ function RankTable({
 }
 
 export default function Top5AnalysisPage() {
-  const [from, setFrom] = useState(monthStart);
-  const [to, setTo] = useState(() => localYmd());
+  const initial = rangeForMonth(currentMonth());
+  const [month, setMonth] = useState(currentMonth);
+  const [from, setFrom] = useState(initial.from);
+  const [to, setTo] = useState(initial.to);
   const [brandId, setBrandId] = useState('');
   const [packVolume, setPackVolume] = useState('');
   const rangeValid = Boolean(from && to && from <= to);
@@ -208,53 +224,84 @@ export default function Top5AnalysisPage() {
   });
 
   const rankings = useMemo(() => {
-    const chart = report.data?.chart ?? [];
-    const products = chart.map((c) => ({
-      name: c.product,
-      planned: c.planned,
-      actual: c.actual,
-      variance: c.variance,
-      achievement: achievementOf(c.planned, c.actual),
-    }));
-
-    const skuMap = new Map<string, { name: string; planned: number; actual: number }>();
-    for (const r of report.data?.skuRows ?? []) {
-      const key = `${r.product} · ${r.sku}`;
-      const cur = skuMap.get(key) ?? { name: key, planned: 0, actual: 0 };
-      cur.planned += r.plannedCases;
-      cur.actual += r.actualCases;
-      skuMap.set(key, cur);
+    const skuMap = new Map<string, { name: string; product: string; sku: string; planned: number; actual: number }>();
+    const skuRows = report.data?.skuRows ?? [];
+    if (skuRows.length > 0) {
+      for (const r of skuRows) {
+        const sku = (r.sku || '—').trim() || '—';
+        const product = r.product || 'Unassigned';
+        const key = `${r.productId}::${sku.toUpperCase()}`;
+        const cur = skuMap.get(key) ?? { name: `${product} · ${sku}`, product, sku, planned: 0, actual: 0 };
+        cur.planned += r.plannedCases;
+        cur.actual += r.actualCases;
+        skuMap.set(key, cur);
+      }
+    } else {
+      for (const c of report.data?.chart ?? []) {
+        skuMap.set(c.product, {
+          name: c.product,
+          product: c.product,
+          sku: '—',
+          planned: c.planned,
+          actual: c.actual,
+        });
+      }
     }
+
     const skuList = [...skuMap.values()].map((s) => ({
       ...s,
       variance: Number((s.actual - s.planned).toFixed(2)),
       achievement: achievementOf(s.planned, s.actual),
     }));
 
-    const toRank = (rows: typeof products): RankRow[] =>
+    const toRank = (rows: typeof skuList): RankRow[] =>
       rows.map((r, i) => ({
         rank: i + 1,
         name: r.name,
+        product: r.product,
+        sku: r.sku,
         planned: r.planned,
         actual: r.actual,
         variance: r.variance,
         achievement: r.achievement,
       }));
 
-    const byPlanned = toRank(topN(products, 5, (r) => r.planned));
-    const byActual = toRank(topN(products, 5, (r) => r.actual));
-    const byAchievement = toRank(topN(products.filter((r) => r.planned > 0), 5, (r) => r.achievement));
-    const byShortfall = toRank(topN(products, 5, (r) => r.variance, false)); // most negative first
-    const bySkuActual = toRank(topN(skuList, 5, (r) => r.actual));
-    const bySkuShortfall = toRank(topN(skuList, 5, (r) => r.variance, false));
+    const byPlanned = toRank(topN(skuList, 5, (r) => r.planned));
+    const byActual = toRank(topN(skuList, 5, (r) => r.actual));
+    const byAchievement = toRank(topN(skuList.filter((r) => r.planned > 0), 5, (r) => r.achievement));
+    const byShortfall = toRank(topN(skuList, 5, (r) => r.variance, false));
 
-    return { byPlanned, byActual, byAchievement, byShortfall, bySkuActual, bySkuShortfall, products };
+    return { byPlanned, byActual, byAchievement, byShortfall, skuList };
   }, [report.data]);
 
   const filters = (
-    <FilterBar columnsClassName="sm:grid-cols-2 lg:grid-cols-5">
+    <FilterBar columnsClassName="sm:grid-cols-2 lg:grid-cols-6">
+      <FilterField label="Month">
+        <input
+          className={FILTER_CTRL}
+          type="month"
+          value={month}
+          max={currentMonth()}
+          onChange={(e) => {
+            const ym = e.target.value;
+            setMonth(ym);
+            const r = rangeForMonth(ym);
+            setFrom(r.from);
+            setTo(r.to);
+          }}
+        />
+      </FilterField>
       <FilterField label="From">
-        <input className={FILTER_CTRL} type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+        <input
+          className={FILTER_CTRL}
+          type="date"
+          value={from}
+          max={to || undefined}
+          onChange={(e) => {
+            setFrom(e.target.value);
+            if (e.target.value.slice(0, 7) === to.slice(0, 7)) setMonth(e.target.value.slice(0, 7));
+          }}
+        />
       </FilterField>
       <FilterField label="To">
         <input
@@ -263,7 +310,10 @@ export default function Top5AnalysisPage() {
           value={to}
           min={from || undefined}
           max={localYmd()}
-          onChange={(e) => setTo(e.target.value)}
+          onChange={(e) => {
+            setTo(e.target.value);
+            if (from.slice(0, 7) === e.target.value.slice(0, 7)) setMonth(e.target.value.slice(0, 7));
+          }}
         />
       </FilterField>
       <FilterField label="Brand">
@@ -286,13 +336,16 @@ export default function Top5AnalysisPage() {
           ))}
         </select>
       </FilterField>
-      <FilterField label="This month">
+      <FilterField label="Reset">
         <button
           type="button"
           className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
           onClick={() => {
-            setFrom(monthStart());
-            setTo(localYmd());
+            const ym = currentMonth();
+            const r = rangeForMonth(ym);
+            setMonth(ym);
+            setFrom(r.from);
+            setTo(r.to);
             setBrandId('');
             setPackVolume('');
           }}
@@ -343,7 +396,7 @@ export default function Top5AnalysisPage() {
     <div>
       <PageHeader
         title="Top 5 Analysis"
-        subtitle="Product & SKU rankings — planned volume, actual, achievement, and shortfall"
+        subtitle="SKU-wise rankings — product + pack size · planned, actual, achievement, and shortfall"
       />
       {filters}
 
@@ -364,18 +417,18 @@ export default function Top5AnalysisPage() {
         />
       </div>
 
-      {rankings.products.length === 0 ? (
+      {rankings.skuList.length === 0 ? (
         <div className="panel p-8 text-center text-sm" style={{ color: 'var(--muted)' }}>
           No plan vs actual data in this range. Add work orders and production entries first.
         </div>
       ) : (
         <>
           <div className="grid gap-4 xl:grid-cols-2">
-            <ChartCard title="Top 5 by Planned Cases">
+            <ChartCard title="Top 5 by Planned Cases (SKU)">
               <ResponsiveContainer>
-                <BarChart data={rankings.byPlanned} margin={{ top: 18, right: 8, left: 0, bottom: 40 }}>
+                <BarChart data={rankings.byPlanned} margin={{ top: 18, right: 8, left: 0, bottom: 48 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={58} />
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
                   <Bar dataKey="planned" name="Planned" fill="var(--chart-2)" radius={4}>
@@ -385,11 +438,11 @@ export default function Top5AnalysisPage() {
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Top 5 by Actual Cases">
+            <ChartCard title="Top 5 by Actual Cases (SKU)">
               <ResponsiveContainer>
-                <BarChart data={rankings.byActual} margin={{ top: 18, right: 8, left: 0, bottom: 40 }}>
+                <BarChart data={rankings.byActual} margin={{ top: 18, right: 8, left: 0, bottom: 48 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={58} />
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
                   <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={4}>
@@ -399,25 +452,29 @@ export default function Top5AnalysisPage() {
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Top 5 Planned vs Actual (clustered)">
+            <ChartCard title="Top 5 Planned vs Actual (SKU)">
               <ResponsiveContainer>
-                <BarChart data={rankings.byPlanned} margin={{ top: 18, right: 8, left: 0, bottom: 40 }}>
+                <BarChart data={rankings.byPlanned} margin={{ top: 22, right: 8, left: 0, bottom: 48 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={58} />
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="planned" name="Planned" fill="var(--chart-2)" radius={4} />
-                  <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={4} />
+                  <Bar dataKey="planned" name="Planned" fill="var(--chart-2)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
+                  <Bar dataKey="actual" name="Actual" fill="var(--chart-1)" radius={4}>
+                    <ChartValueLabels />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Top 5 by Achievement %">
+            <ChartCard title="Top 5 by Achievement % (SKU)">
               <ResponsiveContainer>
-                <BarChart data={rankings.byAchievement} margin={{ top: 18, right: 8, left: 0, bottom: 40 }}>
+                <BarChart data={rankings.byAchievement} margin={{ top: 18, right: 8, left: 0, bottom: 48 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={58} />
                   <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} unit="%" />
                   <Tooltip />
                   <Bar dataKey="achievement" name="Achievement %" fill="var(--chart-5)" radius={4}>
@@ -427,11 +484,11 @@ export default function Top5AnalysisPage() {
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Top 5 Shortfall (worst variance)">
+            <ChartCard title="Top 5 Shortfall (SKU)">
               <ResponsiveContainer>
-                <BarChart data={rankings.byShortfall} margin={{ top: 18, right: 8, left: 0, bottom: 40 }}>
+                <BarChart data={rankings.byShortfall} margin={{ top: 18, right: 8, left: 0, bottom: 48 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={58} />
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <Tooltip />
                   <Bar dataKey="variance" name="Variance (cases)" fill="var(--chart-3)" radius={4}>
@@ -440,29 +497,13 @@ export default function Top5AnalysisPage() {
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
-
-            <ChartCard title="Top 5 SKUs by Actual">
-              <ResponsiveContainer>
-                <BarChart data={rankings.bySkuActual} margin={{ top: 18, right: 8, left: 0, bottom: 48 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#64748b' }} interval={0} angle={-25} textAnchor="end" height={55} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <Tooltip />
-                  <Bar dataKey="actual" name="Actual" fill="var(--chart-4)" radius={4}>
-                    <ChartValueLabels />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
           </div>
 
           <div className="mt-5 grid gap-4 xl:grid-cols-2">
-            <RankTable title="Top 5 — Planned volume" rows={rankings.byPlanned} />
-            <RankTable title="Top 5 — Actual volume" rows={rankings.byActual} />
-            <RankTable title="Top 5 — Achievement %" rows={rankings.byAchievement} accent="good" />
-            <RankTable title="Top 5 — Largest shortfall" rows={rankings.byShortfall} accent="bad" />
-            <RankTable title="Top 5 SKUs — Actual volume" rows={rankings.bySkuActual} />
-            <RankTable title="Top 5 SKUs — Largest shortfall" rows={rankings.bySkuShortfall} accent="bad" />
+            <RankTable title="Top 5 — Planned volume (SKU)" rows={rankings.byPlanned} />
+            <RankTable title="Top 5 — Actual volume (SKU)" rows={rankings.byActual} />
+            <RankTable title="Top 5 — Achievement % (SKU)" rows={rankings.byAchievement} accent="good" />
+            <RankTable title="Top 5 — Largest shortfall (SKU)" rows={rankings.byShortfall} accent="bad" />
           </div>
         </>
       )}

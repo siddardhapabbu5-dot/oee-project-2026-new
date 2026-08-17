@@ -57,6 +57,24 @@ function monthStartLocal() {
   return localYmd(new Date(d.getFullYear(), d.getMonth(), 1));
 }
 
+function currentMonthYm() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** First → last day of YYYY-MM (to capped at today for current month). */
+function rangeForMonth(ym: string) {
+  const [y, m] = ym.split('-').map(Number);
+  if (!y || !m) {
+    const t = todayLocal();
+    return { from: t, to: t };
+  }
+  const from = localYmd(new Date(y, m - 1, 1));
+  const last = localYmd(new Date(y, m, 0));
+  const today = todayLocal();
+  return { from, to: last > today ? today : last };
+}
+
 function fmtAxisDate(iso: string) {
   if (!iso || iso.length < 10) return iso;
   const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
@@ -425,9 +443,10 @@ export function OeePage() {
 }
 
 export function PlanVsActualPage() {
-  const today = () => todayLocal();
-  const [from, setFrom] = useState(() => monthStartLocal());
-  const [to, setTo] = useState(() => today());
+  const initial = rangeForMonth(currentMonthYm());
+  const [month, setMonth] = useState(currentMonthYm);
+  const [from, setFrom] = useState(initial.from);
+  const [to, setTo] = useState(initial.to);
   const [brandId, setBrandId] = useState('');
   const [skuId, setSkuId] = useState('');
   const [packVolume, setPackVolume] = useState('');
@@ -566,14 +585,32 @@ export function PlanVsActualPage() {
         }
       />
 
-      <FilterBar columnsClassName="sm:grid-cols-3 lg:grid-cols-[1fr_1fr_1fr_1fr_auto_minmax(0,1.2fr)]">
+      <FilterBar columnsClassName="sm:grid-cols-3 lg:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto_minmax(0,1.2fr)]">
+        <FilterField label="Month">
+          <input
+            className={FILTER_CTRL}
+            type="month"
+            value={month}
+            max={currentMonthYm()}
+            onChange={(e) => {
+              const ym = e.target.value;
+              setMonth(ym);
+              const r = rangeForMonth(ym);
+              setFrom(r.from);
+              setTo(r.to);
+            }}
+          />
+        </FilterField>
         <FilterField label="From Date">
           <input
             className={FILTER_CTRL}
             type="date"
             value={from}
             max={to || undefined}
-            onChange={(e) => setFrom(e.target.value)}
+            onChange={(e) => {
+              setFrom(e.target.value);
+              if (e.target.value.slice(0, 7) === to.slice(0, 7)) setMonth(e.target.value.slice(0, 7));
+            }}
           />
         </FilterField>
         <FilterField label="To Date">
@@ -582,7 +619,10 @@ export function PlanVsActualPage() {
             type="date"
             value={to}
             min={from || undefined}
-            onChange={(e) => setTo(e.target.value)}
+            onChange={(e) => {
+              setTo(e.target.value);
+              if (from.slice(0, 7) === e.target.value.slice(0, 7)) setMonth(e.target.value.slice(0, 7));
+            }}
           />
         </FilterField>
         <FilterField label="Brand">
@@ -624,14 +664,17 @@ export function PlanVsActualPage() {
             type="button"
             className={`${FILTER_CTRL} cursor-pointer px-3 font-medium`}
             onClick={() => {
-              setFrom(monthStartLocal());
-              setTo(today());
+              const ym = currentMonthYm();
+              const r = rangeForMonth(ym);
+              setMonth(ym);
+              setFrom(r.from);
+              setTo(r.to);
               setBrandId('');
               setSkuId('');
               setPackVolume('');
             }}
           >
-            Reset
+            This month
           </button>
         </FilterField>
         <div className="col-span-2 flex flex-col sm:col-span-1">
