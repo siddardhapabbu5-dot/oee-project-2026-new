@@ -33,6 +33,7 @@ import {
   CalendarDays,
   CalendarRange,
   ShoppingCart,
+  Smartphone,
   ShieldCheck,
 } from 'lucide-react';
 import type { Role } from '../store';
@@ -47,6 +48,7 @@ export type NavItem = {
 
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Home', path: '/home', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: Home },
+  { label: 'Phone app', path: '/m', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: Smartphone },
   { label: 'Dashboard', path: '/dashboard', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: LayoutDashboard },
   { label: 'Sales Dashboard', path: '/sales-dashboard', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Overview', icon: ShoppingCart },
   { label: 'Line-wise Overview', path: '/line-wise', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Overview', icon: Monitor },

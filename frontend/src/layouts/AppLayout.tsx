@@ -1,12 +1,13 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, LogOut, Menu, Moon, Search, Sun, X } from 'lucide-react';
+import { Bell, LogOut, Menu, Moon, Search, Smartphone, Sun, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore, useThemeStore } from '../store';
 import { NAV_ITEMS, SEARCH_KPIS, canAccess } from '../lib/nav';
 import api, { type ApiResponse } from '../lib/api';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { formatWorkOrder } from '../lib/workOrder';
+import { setUiMode } from '../mobile/lib/preferPhone';
 
 type SearchPayload = {
   plants: Array<{ id: string; name: string; code?: string }>;
@@ -233,6 +234,7 @@ export default function AppLayout() {
                       key={link.path}
                       to={link.path}
                       onClick={() => {
+                        if (link.path === '/m') setUiMode('phone');
                         if (window.matchMedia('(max-width: 767px)').matches) setOpen(false);
                       }}
                       className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
@@ -468,6 +470,17 @@ export default function AppLayout() {
             ) : null}
           </div>
           <div className="ml-auto flex items-center gap-1">
+            <button
+              className="header-icon-btn"
+              title="Phone app"
+              aria-label="Open phone app"
+              onClick={() => {
+                setUiMode('phone');
+                navigate('/m');
+              }}
+            >
+              <Smartphone size={18} strokeWidth={1.75} />
+            </button>
             <button className="header-icon-btn relative" onClick={() => navigate('/notifications')} aria-label="Notifications">
               <Bell size={18} strokeWidth={1.75} />
               {unread > 0 ? (

@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { ClipboardList, Gauge, HardHat, LayoutDashboard } from 'lucide-react';
+import { ClipboardList, Gauge, HardHat, LayoutDashboard, Smartphone } from 'lucide-react';
 import { useAuthStore } from '../store';
 import { canAccess } from '../lib/nav';
+import { setUiMode } from '../mobile/lib/preferPhone';
 
 const LINKS = [
   {
@@ -27,6 +28,12 @@ const LINKS = [
     label: 'Production Entries',
     hint: 'Shop floor',
     icon: HardHat,
+  },
+  {
+    to: '/m',
+    label: 'Phone app',
+    hint: 'Shop-floor PWA',
+    icon: Smartphone,
   },
 ] as const;
 
@@ -88,7 +95,14 @@ export default function HomePage() {
       <section className="home-links" aria-label="Quick links">
         <div className="home-links__rail">
           {links.map(({ to, label, hint, icon: Icon }) => (
-            <Link key={to} to={to} className="home-link">
+            <Link
+              key={to}
+              to={to}
+              className="home-link"
+              onClick={() => {
+                if (to === '/m') setUiMode('phone');
+              }}
+            >
               <span className="home-link__icon">
                 <Icon size={17} strokeWidth={1.6} />
               </span>

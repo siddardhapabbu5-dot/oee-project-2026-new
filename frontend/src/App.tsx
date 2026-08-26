@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store';
 import { canAccess } from './lib/nav';
 import AppLayout from './layouts/AppLayout';
@@ -40,6 +40,12 @@ import OeeGuidanceHubPage from './pages/oee-guidance/OeeGuidanceHubPage';
 import OeeRatingScalePage from './pages/oee-guidance/OeeRatingScalePage';
 import OeePillarPage from './pages/oee-guidance/OeePillarPage';
 import HomePage from './pages/HomePage';
+import MobileLayout from './mobile/MobileLayout';
+import MobileHomePage from './mobile/pages/MobileHomePage';
+import MobileFloorPage from './mobile/pages/MobileFloorPage';
+import MobileLinesPage from './mobile/pages/MobileLinesPage';
+import MobileAlertsPage from './mobile/pages/MobileAlertsPage';
+import MobileMorePage from './mobile/pages/MobileMorePage';
 import WasteEntriesPage from './pages/WasteEntriesPage';
 import WastageStatusPage from './pages/WastageStatusPage';
 import WasteReportPage from './pages/WasteReportPage';
@@ -52,7 +58,11 @@ import type { ReactNode } from 'react';
 function Protected({ children, path }: { children: ReactNode; path: string }) {
   const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token) || localStorage.getItem('pms_token');
-  if (!token || !user) return <Navigate to="/login" replace />;
+  const location = useLocation();
+  if (!token || !user) {
+    const next = location.pathname.startsWith('/m') ? '/login?next=/m' : '/login';
+    return <Navigate to={next} replace />;
+  }
   if (!canAccess(user.role, path)) return <Navigate to="/home" replace />;
   return children;
 }
@@ -61,6 +71,20 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/m"
+        element={
+          <Protected path="/home">
+            <MobileLayout />
+          </Protected>
+        }
+      >
+        <Route index element={<MobileHomePage />} />
+        <Route path="floor" element={<MobileFloorPage />} />
+        <Route path="lines" element={<MobileLinesPage />} />
+        <Route path="alerts" element={<MobileAlertsPage />} />
+        <Route path="more" element={<MobileMorePage />} />
+      </Route>
       <Route
         path="/"
         element={

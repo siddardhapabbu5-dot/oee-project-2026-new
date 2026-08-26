@@ -104,6 +104,9 @@ npm run dev
 - API: http://localhost:4000  
 - Swagger: http://localhost:4000/api/docs  
 - Health: http://localhost:4000/health  
+- **Phone app (PWA):** http://localhost:5173/m  
+
+On a phone, login opens the shop-floor app automatically. Install it from the browser (Add to Home Screen / Install app) for a full-screen experience. Supervisors can log hourly output and downtime from the line; the same JWT session is used as the desktop site.
 
 ## Demo Accounts
 

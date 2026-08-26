@@ -19,7 +19,8 @@ api.interceptors.response.use(
       localStorage.removeItem('pms_token');
       localStorage.removeItem('pms_user');
       if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
+        const onPhone = window.location.pathname.startsWith('/m');
+        window.location.href = onPhone ? '/login?next=/m' : '/login';
       }
     }
     return Promise.reject(error);
