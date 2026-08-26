@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api, { type ApiResponse } from '../lib/api';
 import { useAuthStore, type AuthUser } from '../store';
+import { postLoginPath, setUiMode, shouldOpenPhoneApp } from '../mobile/lib/preferPhone';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@pms.local');
@@ -20,7 +21,8 @@ export default function LoginPage() {
       const res = await api.post<ApiResponse<{ token: string; user: AuthUser }>>('/auth/login', { email, password });
       setSession(res.data.data.token, res.data.data.user);
       toast.success('Welcome back');
-      navigate('/home');
+      if (shouldOpenPhoneApp()) setUiMode('phone');
+      navigate(postLoginPath());
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ||
@@ -123,6 +125,16 @@ export default function LoginPage() {
         </button>
 
         <div className="login-footer mt-7 text-center text-sm">
+          <button
+            type="button"
+            className="login-link mb-3 block w-full"
+            onClick={() => {
+              setUiMode('phone');
+              toast('After login, the phone app will open.');
+            }}
+          >
+            Use the phone app after login
+          </button>
           <button type="button" className="login-link" onClick={() => setShowDemo((v) => !v)}>
             {showDemo ? 'Hide demo users' : 'Need a demo account? Show users'}
           </button>
