@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "LineSight",
+    "slug": "linesight-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "linesight",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f2744"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nakshatra.linesight"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0f2744",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.nakshatra.linesight",
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font"
+    ],
+    "extra": {
+      "apiUrlHint": "Set EXPO_PUBLIC_API_URL to http://<host>:4000/api for physical devices"
+    }
+  }
+}

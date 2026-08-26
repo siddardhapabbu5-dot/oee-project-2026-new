@@ -11,3 +11,10 @@ coverage/
 uploads/
 *.tsbuildinfo
 backend/prisma/migrations/**/migration_lock.toml.bak
+mobile/.expo/
+mobile/dist/
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.orig.*
