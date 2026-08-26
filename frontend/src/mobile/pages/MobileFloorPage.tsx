@@ -394,7 +394,40 @@ export default function MobileFloorPage() {
 
       {tab === 'production' && planId ? (
         <>
-          <div className="panel p-3 mb-3">
+          {entries.length === 0 ? <div className="phone-empty panel mb-3">No hours logged yet.</div> : null}
+          {entries.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              className="panel phone-card"
+              style={{ width: '100%', textAlign: 'left' }}
+              onClick={() => {
+                setEditingEntryId(e.id);
+                setProdForm({
+                  plannedCases: String(e.plannedCases),
+                  productionCases: String(e.actualCases),
+                  acceptedCases: String(e.goodCases),
+                  holdCases: String(e.rejectCases),
+                  timeFrom: toTimeOnly(new Date(e.hourStart)),
+                  timeTo: toTimeOnly(new Date(e.hourEnd)),
+                  remarks: e.remarks || '',
+                });
+              }}
+            >
+              <div className="phone-wo__row">
+                <span className="font-semibold">
+                  {formatTime24(e.hourStart)}–{formatTime24(e.hourEnd)}
+                </span>
+                <span>{fmtNum(e.actualCases)} cases</span>
+              </div>
+              <div className="phone-wo__meta">
+                Target {fmtNum(e.plannedCases)} · Good {fmtNum(e.goodCases)} · Hold {fmtNum(e.rejectCases)}
+                {editingEntryId === e.id ? ' · editing' : ''}
+              </div>
+            </button>
+          ))}
+
+          <div className="panel p-3 mt-3 mb-3">
             <div className="phone-grid-2">
               <Field label="From" className="mb-0">
                 <input
@@ -485,48 +518,47 @@ export default function MobileFloorPage() {
               </button>
             </div>
           </div>
-
-          <div className="phone-section__h">
-            <h3>Logged hours</h3>
-          </div>
-          {entries.length === 0 ? <div className="phone-empty panel">No hours logged yet.</div> : null}
-          {entries.map((e) => (
-            <button
-              key={e.id}
-              type="button"
-              className="panel phone-card"
-              style={{ width: '100%', textAlign: 'left' }}
-              onClick={() => {
-                setEditingEntryId(e.id);
-                setProdForm({
-                  plannedCases: String(e.plannedCases),
-                  productionCases: String(e.actualCases),
-                  acceptedCases: String(e.goodCases),
-                  holdCases: String(e.rejectCases),
-                  timeFrom: toTimeOnly(new Date(e.hourStart)),
-                  timeTo: toTimeOnly(new Date(e.hourEnd)),
-                  remarks: e.remarks || '',
-                });
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            >
-              <div className="phone-wo__row">
-                <span className="font-semibold">
-                  {formatTime24(e.hourStart)}–{formatTime24(e.hourEnd)}
-                </span>
-                <span>{fmtNum(e.actualCases)} cases</span>
-              </div>
-              <div className="phone-wo__meta">
-                Target {fmtNum(e.plannedCases)} · Good {fmtNum(e.goodCases)} · Hold {fmtNum(e.rejectCases)}
-              </div>
-            </button>
-          ))}
         </>
       ) : null}
 
       {tab === 'downtime' && planId ? (
         <>
-          <div className="panel p-3 mb-3">
+          {(p?.downtimeEntries ?? []).length === 0 ? (
+            <div className="phone-empty panel mb-3">No stops logged yet.</div>
+          ) : null}
+          {(p?.downtimeEntries ?? []).map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              className="panel phone-card"
+              style={{ width: '100%', textAlign: 'left' }}
+              onClick={() => {
+                setEditingDowntimeId(d.id);
+                setDtForm({
+                  machineId: d.machineId || '',
+                  categoryId: d.categoryId,
+                  reason: d.reason?.name || '',
+                  startTime: toTimeOnly(new Date(d.startTime)),
+                  endTime: toTimeOnly(new Date(d.endTime)),
+                  actionPlan: d.actionTaken || '',
+                  remarks: d.remarks || '',
+                });
+              }}
+            >
+              <div className="phone-wo__row">
+                <span className="font-semibold">
+                  {formatTime24(d.startTime)}–{formatTime24(d.endTime)}
+                </span>
+                <span>{d.durationMins} min</span>
+              </div>
+              <div className="phone-wo__meta">
+                {d.machine?.name || 'Machine n/a'} · {d.category?.name || '—'} · {d.reason?.name || ''}
+                {editingDowntimeId === d.id ? ' · editing' : ''}
+              </div>
+            </button>
+          ))}
+
+          <div className="panel p-3 mt-3 mb-3">
             <Field label="Machine" className="mb-3">
               <select
                 className="phone-select"
@@ -614,44 +646,6 @@ export default function MobileFloorPage() {
               </button>
             </div>
           </div>
-
-          <div className="phone-section__h">
-            <h3>Logged stops</h3>
-          </div>
-          {(p?.downtimeEntries ?? []).length === 0 ? (
-            <div className="phone-empty panel">No stops logged yet.</div>
-          ) : null}
-          {(p?.downtimeEntries ?? []).map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              className="panel phone-card"
-              style={{ width: '100%', textAlign: 'left' }}
-              onClick={() => {
-                setEditingDowntimeId(d.id);
-                setDtForm({
-                  machineId: d.machineId || '',
-                  categoryId: d.categoryId,
-                  reason: d.reason?.name || '',
-                  startTime: toTimeOnly(new Date(d.startTime)),
-                  endTime: toTimeOnly(new Date(d.endTime)),
-                  actionPlan: d.actionTaken || '',
-                  remarks: d.remarks || '',
-                });
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            >
-              <div className="phone-wo__row">
-                <span className="font-semibold">
-                  {formatTime24(d.startTime)}–{formatTime24(d.endTime)}
-                </span>
-                <span>{d.durationMins} min</span>
-              </div>
-              <div className="phone-wo__meta">
-                {d.machine?.name || 'Machine n/a'} · {d.category?.name || '—'} · {d.reason?.name || ''}
-              </div>
-            </button>
-          ))}
         </>
       ) : null}
     </div>

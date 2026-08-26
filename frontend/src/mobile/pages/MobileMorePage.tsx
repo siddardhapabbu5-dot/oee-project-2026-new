@@ -68,8 +68,8 @@ export default function MobileMorePage() {
             <strong className="block">
               {user?.firstName} {user?.lastName}
             </strong>
-            <span className="text-xs capitalize" style={{ color: 'var(--muted)' }}>
-              {role} · {user?.email}
+            <span className="text-xs" style={{ color: 'var(--muted)' }}>
+              <span className="capitalize">{role}</span> · {user?.email}
             </span>
           </span>
         </div>
