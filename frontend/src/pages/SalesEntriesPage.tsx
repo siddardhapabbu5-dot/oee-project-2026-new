@@ -38,6 +38,7 @@ type SalesEntryRow = {
   customerName?: string | null;
   distributor?: { id: string; name: string } | null;
   invoiceNo?: string | null;
+  paymentMode?: string | null;
   casesSold: number;
   unitPrice: number;
   amount: number;
@@ -62,6 +63,18 @@ const CHANNEL_LABEL: Record<string, string> = {
   MODERN_TRADE: 'Modern Trade',
   EXPORT: 'Export',
   OTHER: 'Other',
+};
+
+const PAYMENT_MODES = [
+  { value: 'CASH', label: 'Cash' },
+  { value: 'CREDIT', label: 'Credit' },
+  { value: 'ADVANCE', label: 'Advance' },
+] as const;
+
+const PAYMENT_LABEL: Record<string, string> = {
+  CASH: 'Cash',
+  CREDIT: 'Credit',
+  ADVANCE: 'Advance',
 };
 
 function localYmd(d: Date) {
@@ -90,6 +103,19 @@ function fmtMoney(n: number) {
   return n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
+function distributorLabel(d: { name: string; area?: string | null }) {
+  return d.area ? `${d.name} (${d.area})` : d.name;
+}
+
+function matchDistributor(list: Distributor[], typed: string) {
+  const t = typed.trim().toLowerCase();
+  if (!t) return undefined;
+  return list.find((d) => {
+    const label = distributorLabel(d).toLowerCase();
+    return d.name.toLowerCase() === t || label === t;
+  });
+}
+
 export default function SalesEntriesPage() {
   const user = useAuthStore((s) => s.user);
   const qc = useQueryClient();
@@ -108,6 +134,7 @@ export default function SalesEntriesPage() {
     distributorId: '',
     customerName: '',
     invoiceNo: '',
+    paymentMode: 'CASH',
     casesSold: '',
     unitPrice: '',
     remarks: '',
@@ -177,14 +204,17 @@ export default function SalesEntriesPage() {
       const unitPrice = Number(form.unitPrice) || 0;
       if (!form.productId || !form.skuId) throw new Error('Select product and SKU');
       if (!casesSold || casesSold <= 0) throw new Error('Enter cases sold');
+      const typed = form.customerName.trim();
+      const matched = matchDistributor(distributors.data ?? [], typed);
       await api.post('/sales-entries', {
         saleDate,
         productId: form.productId,
         skuId: form.skuId,
         channel: form.channel,
-        distributorId: form.distributorId || null,
-        customerName: form.customerName || null,
+        distributorId: matched?.id || null,
+        customerName: typed || matched?.name || null,
         invoiceNo: form.invoiceNo || null,
+        paymentMode: form.paymentMode,
         casesSold,
         unitPrice,
         remarks: form.remarks || null,
@@ -198,6 +228,7 @@ export default function SalesEntriesPage() {
         distributorId: '',
         customerName: '',
         invoiceNo: '',
+        paymentMode: 'CASH',
         casesSold: '',
         unitPrice: '',
         remarks: '',
@@ -385,27 +416,27 @@ export default function SalesEntriesPage() {
               </select>
             </Field>
             <Field label="Distributor" className="mb-0">
-              <select
+              <input
                 className="input w-full"
-                value={form.distributorId}
+                list="sale-distributor-suggestions"
+                value={form.customerName}
                 onChange={(e) => {
-                  const id = e.target.value;
-                  const dist = (distributors.data ?? []).find((d) => d.id === id);
+                  const name = e.target.value;
+                  const matched = matchDistributor(distributors.data ?? [], name);
                   setForm({
                     ...form,
-                    distributorId: id,
-                    customerName: dist ? dist.name : '',
+                    customerName: name,
+                    distributorId: matched?.id || '',
                   });
                 }}
-              >
-                <option value="">None / retail</option>
+                placeholder="Type name or pick from list"
+                autoComplete="off"
+              />
+              <datalist id="sale-distributor-suggestions">
                 {(distributors.data ?? []).map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                    {d.area ? ` (${d.area})` : ''}
-                  </option>
+                  <option key={d.id} value={distributorLabel(d)} />
                 ))}
-              </select>
+              </datalist>
             </Field>
             <Field label="Invoice No." className="mb-0">
               <input
@@ -441,6 +472,19 @@ export default function SalesEntriesPage() {
                 placeholder="Optional"
               />
             </Field>
+            <Field label="Payment mode" className="mb-0">
+              <select
+                className="input w-full"
+                value={form.paymentMode}
+                onChange={(e) => setForm({ ...form, paymentMode: e.target.value })}
+              >
+                {PAYMENT_MODES.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
           </div>
           <div className="mt-3 flex gap-2">
             <button className="btn btn-primary" type="button" disabled={save.isPending} onClick={() => save.mutate()}>
@@ -470,6 +514,7 @@ export default function SalesEntriesPage() {
                   <th>Channel</th>
                   <th>Distributor</th>
                   <th>Invoice</th>
+                  <th>Payment</th>
                   <th>Cases</th>
                   <th>Price</th>
                   <th>Amount</th>
@@ -479,7 +524,7 @@ export default function SalesEntriesPage() {
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 11 : 10} className="py-8 text-center" style={{ color: 'var(--muted)' }}>
+                    <td colSpan={canEdit ? 12 : 11} className="py-8 text-center" style={{ color: 'var(--muted)' }}>
                       No sales recorded for this period.
                     </td>
                   </tr>
@@ -493,6 +538,7 @@ export default function SalesEntriesPage() {
                       <td>{CHANNEL_LABEL[r.channel] || r.channel}</td>
                       <td>{r.distributor?.name || r.customerName || '—'}</td>
                       <td>{r.invoiceNo || '—'}</td>
+                      <td>{PAYMENT_LABEL[r.paymentMode || ''] || r.paymentMode || '—'}</td>
                       <td className="tabular-nums">{r.casesSold}</td>
                       <td className="tabular-nums">₹{fmtMoney(r.unitPrice)}</td>
                       <td className="tabular-nums">₹{fmtMoney(r.amount)}</td>

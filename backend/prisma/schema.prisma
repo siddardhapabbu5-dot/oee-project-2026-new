@@ -650,6 +650,12 @@ enum SalesChannel {
   OTHER
 }
 
+enum PaymentMode {
+  CASH
+  CREDIT
+  ADVANCE
+}
+
 /** Party / distributor master — built from day-book sales names */
 model Distributor {
   id          String    @id @default(cuid())
@@ -684,6 +690,7 @@ model SalesEntry {
   channel       SalesChannel @default(DISTRIBUTOR)
   customerName  String?
   invoiceNo     String?
+  paymentMode   PaymentMode  @default(CASH)
   casesSold     Float
   unitPrice     Float        @default(0)
   amount        Float        @default(0)
@@ -708,6 +715,7 @@ model SalesEntry {
   @@index([skuId])
   @@index([distributorId])
   @@index([channel])
+  @@index([paymentMode])
   @@index([deletedAt])
   @@map("sales_entries")
 }

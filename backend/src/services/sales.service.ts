@@ -1,4 +1,4 @@
-import { Prisma, type SalesChannel } from '@prisma/client';
+import { Prisma, type PaymentMode, type SalesChannel } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import type { AuthUser } from '../middleware/auth.js';
 import { calendarDateRange, toCalendarDate } from '../utils/dates.js';
@@ -18,6 +18,12 @@ const CHANNEL_LABEL: Record<SalesChannel, string> = {
   MODERN_TRADE: 'Modern Trade',
   EXPORT: 'Export',
   OTHER: 'Other',
+};
+
+const PAYMENT_LABEL: Record<PaymentMode, string> = {
+  CASH: 'Cash',
+  CREDIT: 'Credit',
+  ADVANCE: 'Advance',
 };
 
 function slugCode(s: string) {
@@ -275,6 +281,7 @@ export async function getSalesDashboard(
         channel: CHANNEL_LABEL[e.channel] || e.channel,
         customerName: e.customerName || '—',
         invoiceNo: e.invoiceNo || '—',
+        paymentMode: PAYMENT_LABEL[e.paymentMode] || e.paymentMode,
         casesSold: e.casesSold,
         unitPrice: e.unitPrice,
         amount: e.amount,
@@ -318,6 +325,7 @@ export async function createSalesEntry(
     channel?: SalesChannel;
     customerName?: string | null;
     invoiceNo?: string | null;
+    paymentMode?: PaymentMode;
     casesSold: number;
     unitPrice?: number;
     remarks?: string | null;
@@ -343,11 +351,19 @@ export async function createSalesEntry(
   const sku = await skuForProductPack(selectedProduct.id, template);
 
   let distributorId = data.distributorId || null;
-  let customerName = data.customerName || null;
+  let customerName = data.customerName?.trim() || null;
   if (distributorId) {
     const dist = await prisma.distributor.findFirst({ where: { id: distributorId, deletedAt: null } });
     if (!dist) throw new ValidationError('Distributor not found');
     if (!customerName) customerName = dist.name;
+  } else if (customerName) {
+    const dist = await prisma.distributor.findFirst({
+      where: { deletedAt: null, name: { equals: customerName, mode: 'insensitive' } },
+    });
+    if (dist) {
+      distributorId = dist.id;
+      customerName = dist.name;
+    }
   }
 
   const saleDate = new Date(`${data.saleDate.slice(0, 10)}T00:00:00.000Z`);
@@ -363,6 +379,7 @@ export async function createSalesEntry(
       channel: data.channel || 'DISTRIBUTOR',
       customerName,
       invoiceNo: data.invoiceNo || null,
+      paymentMode: data.paymentMode || 'CASH',
       casesSold: cases,
       unitPrice,
       amount,
@@ -419,6 +436,7 @@ export async function exportSalesExcel(
     { header: 'Channel', key: 'channel', width: 14 },
     { header: 'Customer', key: 'customer', width: 20 },
     { header: 'Invoice', key: 'invoice', width: 18 },
+    { header: 'Payment', key: 'payment', width: 12 },
     { header: 'Cases', key: 'cases', width: 12 },
     { header: 'Unit Price', key: 'unitPrice', width: 12 },
     { header: 'Amount', key: 'amount', width: 14 },
@@ -436,6 +454,7 @@ export async function exportSalesExcel(
       channel: CHANNEL_LABEL[e.channel] || e.channel,
       customer: e.customerName || '',
       invoice: e.invoiceNo || '',
+      payment: PAYMENT_LABEL[e.paymentMode] || e.paymentMode,
       cases: e.casesSold,
       unitPrice: e.unitPrice,
       amount: e.amount,

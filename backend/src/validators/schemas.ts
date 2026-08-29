@@ -246,6 +246,7 @@ export const salesEntrySchema = z.object({
   distributorId: z.string().optional().nullable(),
   customerName: z.string().optional().nullable(),
   invoiceNo: z.string().optional().nullable(),
+  paymentMode: z.enum(['CASH', 'CREDIT', 'ADVANCE']).optional(),
   casesSold: z.number().positive(),
   unitPrice: z.number().nonnegative().optional(),
   remarks: z.string().optional().nullable(),

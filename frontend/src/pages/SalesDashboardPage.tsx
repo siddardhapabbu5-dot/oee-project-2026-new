@@ -63,6 +63,7 @@ type SalesRow = {
   channel: string;
   customerName: string;
   invoiceNo: string;
+  paymentMode?: string;
   casesSold: number;
   unitPrice: number;
   amount: number;
@@ -418,6 +419,7 @@ export default function SalesDashboardPage() {
                 <th>Channel</th>
                 <th>Customer</th>
                 <th>Invoice</th>
+                <th>Payment</th>
                 <th>Cases</th>
                 <th>Price</th>
                 <th>Amount</th>
@@ -426,7 +428,7 @@ export default function SalesDashboardPage() {
             <tbody>
               {recent.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center" style={{ color: 'var(--muted)' }}>
+                  <td colSpan={11} className="py-8 text-center" style={{ color: 'var(--muted)' }}>
                     No sales in this range.{' '}
                     <Link className="underline" to="/sales-entries">
                       Record a day-wise sale
@@ -443,6 +445,7 @@ export default function SalesDashboardPage() {
                     <td>{r.channel}</td>
                     <td>{r.customerName}</td>
                     <td>{r.invoiceNo}</td>
+                    <td>{r.paymentMode || '—'}</td>
                     <td className="tabular-nums">{r.casesSold}</td>
                     <td className="tabular-nums">₹{fmtMoney(r.unitPrice)}</td>
                     <td className="tabular-nums">₹{fmtMoney(r.amount)}</td>
