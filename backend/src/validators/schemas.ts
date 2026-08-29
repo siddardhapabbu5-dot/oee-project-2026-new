@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { Role, PlanStatus, EntryStatus, ChangeoverKind, ChangeoverStatus } from '@prisma/client';
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   password: z.string().min(6),
 });
 
@@ -54,6 +54,15 @@ export const brandSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   description: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
+export const distributorSchema = z.object({
+  code: z.string().min(1).optional(),
+  name: z.string().min(1),
+  phone: z.string().optional().nullable(),
+  area: z.string().optional().nullable(),
+  remarks: z.string().optional().nullable(),
   isActive: z.boolean().optional(),
 });
 
@@ -234,11 +243,24 @@ export const salesEntrySchema = z.object({
   productId: z.string().min(1),
   skuId: z.string().min(1),
   channel: z.enum(['DISTRIBUTOR', 'RETAIL', 'MODERN_TRADE', 'EXPORT', 'OTHER']).optional(),
+  distributorId: z.string().optional().nullable(),
   customerName: z.string().optional().nullable(),
   invoiceNo: z.string().optional().nullable(),
   casesSold: z.number().positive(),
   unitPrice: z.number().nonnegative().optional(),
   remarks: z.string().optional().nullable(),
+});
+
+export const pettyCashSchema = z.object({
+  entryDate: z.string().min(8),
+  voucherNo: z.string().optional().nullable(),
+  category: z.string().min(1),
+  description: z.string().min(1),
+  received: z.number().nonnegative().optional(),
+  paid: z.number().nonnegative().optional(),
+  approvedBy: z.string().optional().nullable(),
+  remarks: z.string().optional().nullable(),
+  plantId: z.string().optional().nullable(),
 });
 
 export const rftEntrySchema = z.object({

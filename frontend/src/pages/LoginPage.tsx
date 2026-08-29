@@ -4,20 +4,27 @@ import toast from 'react-hot-toast';
 import api, { type ApiResponse } from '../lib/api';
 import { useAuthStore, type AuthUser } from '../store';
 
+const DEMO_PASSWORD = 'Password@123';
+
 export default function LoginPage() {
   const [email, setEmail] = useState('admin@pms.local');
-  const [password, setPassword] = useState('Password@123');
+  const [password, setPassword] = useState(DEMO_PASSWORD);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [showDemo, setShowDemo] = useState(false);
+  const [showDemo, setShowDemo] = useState(true);
+  const [error, setError] = useState('');
   const setSession = useAuthStore((s) => s.setSession);
   const navigate = useNavigate();
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    setError('');
     setLoading(true);
     try {
-      const res = await api.post<ApiResponse<{ token: string; user: AuthUser }>>('/auth/login', { email, password });
+      const res = await api.post<ApiResponse<{ token: string; user: AuthUser }>>('/auth/login', {
+        email: email.trim(),
+        password,
+      });
       setSession(res.data.data.token, res.data.data.user);
       toast.success('Welcome back');
       navigate('/home');
@@ -25,6 +32,7 @@ export default function LoginPage() {
       const message =
         (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ||
         'Login failed';
+      setError(message);
       toast.error(message);
     } finally {
       setLoading(false);
@@ -53,6 +61,8 @@ export default function LoginPage() {
 
       <form
         onSubmit={onSubmit}
+        autoComplete="off"
+        noValidate
         className="login-glass relative z-10 w-full max-w-[380px] px-9 py-10"
         style={{ animation: 'loginRise 700ms cubic-bezier(0.22, 1, 0.36, 1) both' }}
       >
@@ -76,10 +86,15 @@ export default function LoginPage() {
         <label className="login-field mb-6 block">
           <span className="login-label mb-2 block text-sm">Username</span>
           <input
-            type="email"
-            autoComplete="username"
+            type="text"
+            inputMode="email"
+            autoComplete="off"
+            name="oee-username"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setError('');
+            }}
             required
             className="login-underline"
             placeholder="email@company.com"
@@ -90,14 +105,20 @@ export default function LoginPage() {
           <span className="login-label mb-2 block text-sm">Password</span>
           <input
             type="password"
-            autoComplete="current-password"
+            autoComplete="new-password"
+            name="oee-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setError('');
+            }}
             required
             className="login-underline"
             placeholder="••••••••"
           />
         </label>
+
+        {error ? <p className="login-error mb-5 text-sm">{error}</p> : null}
 
         <div className="login-meta mb-7 flex items-center justify-between gap-3 text-sm">
           <label className="inline-flex cursor-pointer items-center gap-2 select-none">

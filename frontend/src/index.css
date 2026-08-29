@@ -526,6 +526,25 @@ table.data tr:hover td.col-actions-start {
 }
 
 /* Sidebar menu scroll — keep profile/logout pinned, nav scrolls */
+.sidebar-search {
+  width: 100%;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--sidebar-border);
+  background: rgba(140, 160, 180, 0.1);
+  color: var(--sidebar-heading);
+  padding: 0 1.6rem 0 1.85rem;
+  font-size: 0.75rem;
+  outline: none;
+}
+.sidebar-search::placeholder {
+  color: var(--sidebar-text);
+  opacity: 0.85;
+}
+.sidebar-search:focus {
+  border-color: color-mix(in oklab, var(--sidebar-heading) 28%, var(--sidebar-border));
+  background: rgba(140, 160, 180, 0.16);
+}
 .sidebar-nav {
   scrollbar-gutter: stable;
   scrollbar-width: thin;
@@ -830,6 +849,13 @@ table.data tr.row-editing td {
 }
 .login-footer {
   color: var(--login-muted);
+}
+.login-error {
+  color: #b42318;
+  background: rgba(254, 243, 242, 0.92);
+  border: 1px solid color-mix(in oklab, #f04438 28%, transparent);
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
 }
 .login-btn {
   width: 100%;

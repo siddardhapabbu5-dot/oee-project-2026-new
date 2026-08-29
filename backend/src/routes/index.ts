@@ -10,6 +10,8 @@ import * as dashboardService from '../services/dashboard.service.js';
 import * as reportService from '../services/report.service.js';
 import * as wasteService from '../services/waste.service.js';
 import * as salesService from '../services/sales.service.js';
+import * as pettyCashService from '../services/pettyCash.service.js';
+import { pettyCashUpload, pettyCashFilePath } from '../middleware/pettyCashUpload.js';
 import * as rftService from '../services/rft.service.js';
 import {
   loginSchema,
@@ -20,6 +22,7 @@ import {
   plantSchema,
   lineSchema,
   brandSchema,
+  distributorSchema,
   productSchema,
   skuSchema,
   machineSchema,
@@ -37,6 +40,7 @@ import {
   wasteEntrySchema,
   wasteEntryUpdateSchema,
   salesEntrySchema,
+  pettyCashSchema,
   rftEntrySchema,
   shiftClosingSchema,
   approvalSchema,
@@ -210,6 +214,17 @@ router.patch('/brands/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER
 }));
 router.delete('/brands/:id', authenticate, authorize('ADMIN'), asyncHandler(async (req, res) => {
   success(res, await masterService.deleteBrand(idParam(req), req));
+}));
+
+crudList('/distributors', ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], (q) => masterService.listDistributors(q));
+router.post('/distributors', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  success(res, await masterService.createDistributor(distributorSchema.parse(req.body), req), 201);
+}));
+router.patch('/distributors/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  success(res, await masterService.updateDistributor(idParam(req), distributorSchema.partial().parse(req.body), req));
+}));
+router.delete('/distributors/:id', authenticate, authorize('ADMIN'), asyncHandler(async (req, res) => {
+  success(res, await masterService.deleteDistributor(idParam(req), req));
 }));
 
 crudList('/skus', ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], (q) => masterService.listSkus(q as never), (req) => ({
@@ -791,6 +806,7 @@ router.get('/sales-entries', authenticate, asyncHandler(async (req, res) => {
       from: req.query.from as string | undefined,
       to: req.query.to as string | undefined,
       plantId: req.query.plantId as string | undefined,
+      channel: req.query.channel as string | undefined,
     }),
   );
 }));
@@ -802,6 +818,91 @@ router.post('/sales-entries', authenticate, authorize('ADMIN', 'PRODUCTION_MANAG
 
 router.delete('/sales-entries/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
   success(res, await salesService.softDeleteSalesEntry(idParam(req, 'id')));
+}));
+
+router.get('/petty-cash', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  success(
+    res,
+    await pettyCashService.listPettyCash(req.user, {
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      category: req.query.category as string | undefined,
+    }),
+  );
+}));
+router.get('/petty-cash/export/excel', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  const buffer = await pettyCashService.exportPettyCashExcel(req.user, {
+    from: req.query.from as string | undefined,
+    to: req.query.to as string | undefined,
+    category: req.query.category as string | undefined,
+  });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename=petty-cash-${(req.query.from as string) || 'from'}-${(req.query.to as string) || 'to'}.xlsx`,
+  );
+  res.send(buffer);
+}));
+
+function pettyCashBody(req: Request) {
+  const b = req.body as Record<string, unknown>;
+  const num = (v: unknown) => {
+    if (v === '' || v == null) return 0;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  return pettyCashSchema.parse({
+    entryDate: String(b.entryDate || ''),
+    voucherNo: b.voucherNo ? String(b.voucherNo) : null,
+    category: String(b.category || ''),
+    description: String(b.description || ''),
+    received: num(b.received),
+    paid: num(b.paid),
+    approvedBy: b.approvedBy ? String(b.approvedBy) : null,
+    remarks: b.remarks ? String(b.remarks) : null,
+    plantId: b.plantId ? String(b.plantId) : null,
+  });
+}
+
+function optionalPettyCashUpload(req: Request, res: import('express').Response, next: import('express').NextFunction) {
+  const ct = String(req.headers['content-type'] || '');
+  if (ct.includes('multipart/form-data')) {
+    pettyCashUpload.single('attachment')(req, res, next);
+    return;
+  }
+  next();
+}
+
+router.post(
+  '/petty-cash',
+  authenticate,
+  authorize('ADMIN', 'PRODUCTION_MANAGER'),
+  optionalPettyCashUpload,
+  asyncHandler(async (req, res) => {
+    const file = (req as Request & { file?: Express.Multer.File }).file;
+    const attachment = file
+      ? { originalName: file.originalname, mime: file.mimetype, storedName: file.filename }
+      : null;
+    success(res, await pettyCashService.createPettyCash({ ...pettyCashBody(req), attachment }, req.user), 201);
+  }),
+);
+router.get('/petty-cash/:id/attachment', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  const meta = await pettyCashService.getPettyCashAttachment(idParam(req));
+  const filePath = pettyCashFilePath(meta.storedName);
+  const fs = await import('node:fs');
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ success: false, error: { message: 'Attachment file is missing' } });
+    return;
+  }
+  res.setHeader('Content-Type', meta.mime);
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(meta.name)}"`);
+  fs.createReadStream(filePath).pipe(res);
+}));
+router.patch('/petty-cash/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  success(res, await pettyCashService.updatePettyCash(idParam(req), pettyCashSchema.partial().parse(req.body)));
+}));
+router.delete('/petty-cash/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  success(res, await pettyCashService.softDeletePettyCash(idParam(req)));
 }));
 
 /** Reports */

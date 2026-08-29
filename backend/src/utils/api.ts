@@ -10,7 +10,7 @@ export function success<T>(res: Response, data: T, status = 200, meta?: Record<s
 
 export function parsePagination(req: Request) {
   const page = Math.max(1, Number(req.query.page) || 1);
-  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+  const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 20));
   const skip = (page - 1) * limit;
   const sortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy : 'createdAt';
   const sortOrder = (req.query.sortOrder === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc';

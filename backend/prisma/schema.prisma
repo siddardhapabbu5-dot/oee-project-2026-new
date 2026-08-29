@@ -91,6 +91,7 @@ model User {
   manpowerEntries    ManpowerEntry[]
   wasteEntries       WasteEntry[]
   salesEntries       SalesEntry[]
+  pettyCashEntries   PettyCashEntry[]
   rftEntries         RftEntry[]          @relation("RftEntryCreator")
   shiftClosings      ShiftClosing[]
   notifications      Notification[]
@@ -120,6 +121,7 @@ model Plant {
   lines           ProductionLine[]
   productionPlans ProductionPlan[]
   salesEntries    SalesEntry[]
+  pettyCashEntries PettyCashEntry[]
   rftEntries      RftEntry[]
 
   @@index([deletedAt])
@@ -648,41 +650,96 @@ enum SalesChannel {
   OTHER
 }
 
+/** Party / distributor master — built from day-book sales names */
+model Distributor {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  name        String
+  phone       String?
+  area        String?
+  remarks     String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?
+  updatedById String?
+
+  salesEntries SalesEntry[]
+
+  @@index([name])
+  @@index([deletedAt])
+  @@map("distributors")
+}
+
 /** Daily / invoice-level sales for Sales Dashboard */
 model SalesEntry {
-  id           String       @id @default(cuid())
-  saleDate     DateTime
-  plantId      String?
-  brandId      String?
-  productId    String
-  skuId        String
-  channel      SalesChannel @default(DISTRIBUTOR)
-  customerName String?
-  invoiceNo    String?
-  casesSold    Float
-  unitPrice    Float        @default(0)
-  amount       Float        @default(0)
-  remarks      String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  deletedAt    DateTime?
-  createdById  String?
-  updatedById  String?
+  id            String       @id @default(cuid())
+  saleDate      DateTime
+  plantId       String?
+  brandId       String?
+  productId     String
+  skuId         String
+  distributorId String?
+  channel       SalesChannel @default(DISTRIBUTOR)
+  customerName  String?
+  invoiceNo     String?
+  casesSold     Float
+  unitPrice     Float        @default(0)
+  amount        Float        @default(0)
+  remarks       String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+  createdById   String?
+  updatedById   String?
 
-  plant     Plant?   @relation(fields: [plantId], references: [id])
-  brand     Brand?   @relation(fields: [brandId], references: [id])
-  product   Product  @relation(fields: [productId], references: [id])
-  sku       Sku      @relation(fields: [skuId], references: [id])
-  createdBy User?    @relation(fields: [createdById], references: [id])
+  plant        Plant?        @relation(fields: [plantId], references: [id])
+  brand        Brand?        @relation(fields: [brandId], references: [id])
+  product      Product       @relation(fields: [productId], references: [id])
+  sku          Sku           @relation(fields: [skuId], references: [id])
+  distributor  Distributor?  @relation(fields: [distributorId], references: [id])
+  createdBy    User?         @relation(fields: [createdById], references: [id])
 
   @@index([saleDate])
   @@index([plantId])
   @@index([brandId])
   @@index([productId])
   @@index([skuId])
+  @@index([distributorId])
   @@index([channel])
   @@index([deletedAt])
   @@map("sales_entries")
+}
+
+/** Petty cash book — voucher, received / paid, running balance */
+model PettyCashEntry {
+  id          String    @id @default(cuid())
+  entryDate   DateTime
+  voucherNo   String    @unique
+  category    String
+  description String
+  received    Float     @default(0)
+  paid        Float     @default(0)
+  approvedBy  String?
+  remarks     String?
+  attachmentName String?
+  attachmentMime String?
+  attachmentPath String?
+  plantId     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  createdById String?
+
+  plant     Plant? @relation(fields: [plantId], references: [id])
+  createdBy User?  @relation(fields: [createdById], references: [id])
+
+  @@index([entryDate])
+  @@index([category])
+  @@index([plantId])
+  @@index([deletedAt])
+  @@map("petty_cash_entries")
 }
 
 /** RFT Reject Area master (Filling, Capping, Label, …) */

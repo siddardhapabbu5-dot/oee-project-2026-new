@@ -9,6 +9,7 @@ import {
   isPlannedProductionLossCategory,
 } from '../utils/oee.js';
 import { calendarDateRange, toCalendarDate } from '../utils/dates.js';
+import { canonicalDowntimeReasonName } from '../utils/downtimeReasonName.js';
 
 function dateRange(from?: string, to?: string) {
   return calendarDateRange(from, to, 14);
@@ -16,6 +17,15 @@ function dateRange(from?: string, to?: string) {
 
 function toDateKey(d: Date) {
   return toCalendarDate(d);
+}
+
+function machineLabel(
+  machine?: { name?: string | null; code?: string | null } | null,
+  fallback = 'Unassigned',
+) {
+  const raw = String(machine?.name || machine?.code || fallback).trim() || fallback;
+  const stripped = raw.replace(/^LINE[-_\s]?\d+[-_\s]*/i, '').trim();
+  return stripped || raw;
 }
 
 function planScope(user?: AuthUser): Prisma.ProductionPlanWhereInput {
@@ -929,7 +939,7 @@ export async function getDowntimeAnalysis(
     c.minutes += mins;
     categoryMap.set(cat, c);
 
-    const mach = e.machine?.code || e.machine?.name || 'Unassigned';
+    const mach = machineLabel(e.machine);
     const m = machineMap.get(mach) ?? { count: 0, minutes: 0 };
     m.count += 1;
     m.minutes += mins;
@@ -941,7 +951,7 @@ export async function getDowntimeAnalysis(
     l.minutes += mins;
     lineMap.set(lineName, l);
 
-    const reasonName = e.reason?.name || 'Other';
+    const reasonName = canonicalDowntimeReasonName(e.reason?.name || 'Other');
     const r = reasonMap.get(reasonName) ?? { count: 0, minutes: 0 };
     r.count += 1;
     r.minutes += mins;
@@ -1009,7 +1019,7 @@ export async function getDowntimeAnalysis(
       planNumber: e.plan?.planNumber || '—',
       line: e.plan?.line?.code || e.plan?.line?.name || '—',
       shift: e.plan?.shift?.name || '—',
-      machine: e.machine?.code || e.machine?.name || '—',
+      machine: machineLabel(e.machine, '—'),
       category: e.category?.name || '—',
       reason: e.reason?.name || '—',
       durationMins: Number(e.durationMins) || 0,

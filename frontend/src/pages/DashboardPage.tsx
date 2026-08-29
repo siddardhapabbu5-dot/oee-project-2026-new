@@ -33,6 +33,7 @@ import {
 import api, { type ApiResponse } from '../lib/api';
 import { ChartCard, CopyCardButton, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 import { ChartValueLabels } from '../components/chartLabels';
+import { OeeImprovementPanel } from '../components/OeeImprovementPanel';
 import { useAuthStore } from '../store';
 import {
   downtimeColor,
@@ -66,9 +67,10 @@ type Charts = {
   planVsActual: Array<{ date: string; planned: number; actual: number }>;
   dailyTrend: Array<{ date: string; actual: number; good: number }>;
   shiftPerformance: Array<{ shift: string; planned: number; actual: number }>;
-  linePerformance: Array<{ line: string; planned: number; actual: number }>;
+  linePerformance: Array<{ line: string; planned: number; actual: number; downtime?: number }>;
   oeeTrend: Array<{ date: string; oee: number; availability?: number; performance?: number; quality?: number }>;
   downtimeByCategory: Array<{ name: string; minutes: number }>;
+  downtimeByMachine?: Array<{ name: string; minutes: number }>;
   productContribution: Array<{ name: string; actual: number }>;
   capacityUtilization: Array<{ date: string; utilization: number }>;
 };
@@ -375,6 +377,7 @@ export default function DashboardPage() {
         shiftPerformance: [] as Charts['shiftPerformance'],
         linePerformance: [] as Charts['linePerformance'],
         downtimeByCategory: [] as Charts['downtimeByCategory'],
+        downtimeByMachine: [] as NonNullable<Charts['downtimeByMachine']>,
         productContribution: [] as Charts['productContribution'],
       };
     }
@@ -397,6 +400,7 @@ export default function DashboardPage() {
       shiftPerformance: c.shiftPerformance,
       linePerformance: c.linePerformance,
       downtimeByCategory: consolidatePieRows(c.downtimeByCategory ?? []),
+      downtimeByMachine: c.downtimeByMachine ?? [],
       productContribution: (c.productContribution ?? []).slice(0, 10),
     };
   }, [summary.data?.charts, from, to]);
@@ -644,6 +648,15 @@ export default function DashboardPage() {
           icon={Clock3}
         />
       </div>
+
+      <OeeImprovementPanel
+        kpis={k}
+        charts={{
+          downtimeByCategory: summary.data.charts.downtimeByCategory,
+          downtimeByMachine: summary.data.charts.downtimeByMachine,
+          linePerformance: summary.data.charts.linePerformance,
+        }}
+      />
 
       <div className="mt-3 grid gap-3 xl:grid-cols-2">
         <ChartCard title="Production Plan vs Actual">

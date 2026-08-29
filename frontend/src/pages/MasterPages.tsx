@@ -140,6 +140,40 @@ export function BrandsPage() {
   );
 }
 
+export function DistributorsPage() {
+  return (
+    <CrudPage<Row>
+      title="Distributors"
+      subtitle="Party master from day-book sales — name, phone, and area"
+      endpoint="/distributors"
+      countLabel="distributors"
+      invalidateKeys={['distributors-options', '/distributors', '/sales-entries']}
+      columns={[
+        { key: 'name', label: 'Distributor' },
+        { key: 'phone', label: 'Phone', render: (r) => r.phone || '—' },
+        { key: 'area', label: 'Area', render: (r) => r.area || '—' },
+        {
+          key: 'isActive',
+          label: 'Status',
+          render: (r) => <ActiveStatus active={!!r.isActive} />,
+        },
+      ]}
+      fields={[
+        { name: 'name', label: 'Distributor Name' },
+        { name: 'phone', label: 'Phone' },
+        { name: 'area', label: 'Area' },
+        { name: 'remarks', label: 'Remarks' },
+      ]}
+      mapCreate={(form) => ({
+        name: form.name,
+        phone: form.phone || null,
+        area: form.area || null,
+        remarks: form.remarks || null,
+      })}
+    />
+  );
+}
+
 export function ProductsPage() {
   /** Pack size (units/case) from pack volume */
   function packSizeFromVolume(volume?: string | null) {
@@ -179,6 +213,7 @@ export function ProductsPage() {
       subtitle="SKU Code · Product Name · Pack Volume · Pack Size · Status"
       endpoint="/skus"
       queryKey="/skus"
+      invalidateKeys={['skus', 'product-options', 'products-options']}
       countLabel="SKU"
       countExtra={(rows) => {
         const productCount = new Set(rows.map((r) => r.productId).filter(Boolean)).size;

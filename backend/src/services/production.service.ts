@@ -6,6 +6,7 @@ import { writeAuditLog } from '../utils/audit.js';
 import { calcLoss, minutesBetween } from '../utils/oee.js';
 import { calendarDateRange, parseCalendarDate, toCalendarDate } from '../utils/dates.js';
 import { normalizeReworkByZone, sumReworkCases, type ReworkByZoneInput } from '../utils/reworkZones.js';
+import { canonicalDowntimeReasonName } from '../utils/downtimeReasonName.js';
 import type { Request } from 'express';
 import type { AuthUser } from '../middleware/auth.js';
 
@@ -1117,7 +1118,7 @@ async function resolveDowntimeReason(
   reasonTextInput?: string | null,
 ) {
   const reasonId = String(reasonIdInput || '').trim();
-  const reasonText = String(reasonTextInput || '').trim();
+  const reasonText = canonicalDowntimeReasonName(String(reasonTextInput || '').trim());
 
   let reason = reasonId
     ? await prisma.downtimeReason.findFirst({ where: { id: reasonId, deletedAt: null } })

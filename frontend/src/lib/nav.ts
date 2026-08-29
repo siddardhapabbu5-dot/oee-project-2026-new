@@ -33,6 +33,9 @@ import {
   CalendarDays,
   CalendarRange,
   ShoppingCart,
+  Receipt,
+  Truck,
+  Wallet,
   ShieldCheck,
 } from 'lucide-react';
 import type { Role } from '../store';
@@ -62,6 +65,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Products & SKUs', path: '/products', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Master Data', icon: Package },
   { label: 'Production Targets', path: '/production-targets', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Master Data', icon: Target },
   { label: 'Brands', path: '/brands', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Master Data', icon: Tag },
+  { label: 'Distributors', path: '/distributors', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Master Data', icon: Truck },
   { label: 'Machines', path: '/machines', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Master Data', icon: Cog },
   { label: 'Shifts', path: '/shifts', roles: ['ADMIN'], group: 'Master Data', icon: Clock3 },
   { label: 'Changeover Types', path: '/changeover-types', roles: ['ADMIN'], group: 'Master Data', icon: RefreshCw },
@@ -71,6 +75,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Wastage Status', path: '/wastage-status', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: ClipboardList },
   { label: 'Changeover Details', path: '/changeover-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: ArrowLeftRight },
   { label: 'RFT Entries', path: '/rft-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Shop Floor', icon: ShieldCheck },
+  { label: 'Sales Entries', path: '/sales-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Shop Floor', icon: Receipt },
+  { label: 'Petty Cash', path: '/petty-cash', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Shop Floor', icon: Wallet },
   { label: 'Approvals', path: '/approvals', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Shop Floor', icon: BadgeCheck },
   { label: 'Monitoring', path: '/monitoring', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: Activity },
   { label: 'Downtime Analysis', path: '/downtime-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Analytics', icon: TimerOff },
@@ -105,6 +111,24 @@ export const SEARCH_KPIS: SearchKpi[] = [
     hint: 'Cases, revenue, brand & channel',
     path: '/sales-dashboard',
     keywords: ['sales', 'revenue', 'cases sold', 'invoice', 'channel', 'brand sales'],
+  },
+  {
+    label: 'Sales Entries',
+    hint: 'Day-wise sales recording',
+    path: '/sales-entries',
+    keywords: ['sales entry', 'record sale', 'daily sales', 'invoice entry', 'cases sold'],
+  },
+  {
+    label: 'Distributors',
+    hint: 'Party master from day-book sales',
+    path: '/distributors',
+    keywords: ['distributor', 'party', 'customer', 'dealer', 'area', 'phone'],
+  },
+  {
+    label: 'Petty Cash',
+    hint: 'Vouchers, expenses, running balance',
+    path: '/petty-cash',
+    keywords: ['petty cash', 'voucher', 'expense', 'tea', 'travel', 'opening cash', 'closing cash'],
   },
   {
     label: 'OEE',

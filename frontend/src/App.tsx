@@ -12,6 +12,7 @@ import {
   PlantsPage,
   LinesPage,
   BrandsPage,
+  DistributorsPage,
   ProductsPage,
   MachinesPage,
   ShiftsPage,
@@ -44,6 +45,8 @@ import WasteEntriesPage from './pages/WasteEntriesPage';
 import WastageStatusPage from './pages/WastageStatusPage';
 import WasteReportPage from './pages/WasteReportPage';
 import SalesDashboardPage from './pages/SalesDashboardPage';
+import SalesEntriesPage from './pages/SalesEntriesPage';
+import PettyCashPage from './pages/PettyCashPage';
 import RftDashboardPage from './pages/RftDashboardPage';
 import RftEntriesPage from './pages/RftEntriesPage';
 import Top5AnalysisPage from './pages/Top5AnalysisPage';
@@ -73,6 +76,8 @@ export default function App() {
         <Route path="home" element={<HomePage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="sales-dashboard" element={<Protected path="/sales-dashboard"><SalesDashboardPage /></Protected>} />
+        <Route path="sales-entries" element={<Protected path="/sales-entries"><SalesEntriesPage /></Protected>} />
+        <Route path="petty-cash" element={<Protected path="/petty-cash"><PettyCashPage /></Protected>} />
         <Route path="line-wise" element={<Protected path="/line-wise"><LineWiseOverviewPage /></Protected>} />
         <Route path="day-wise-oee" element={<Protected path="/day-wise-oee"><DayWiseOeePage /></Protected>} />
         <Route path="week-wise-oee" element={<Protected path="/week-wise-oee"><WeekWiseOeePage /></Protected>} />
@@ -97,6 +102,7 @@ export default function App() {
         <Route path="products" element={<Protected path="/products"><ProductsPage /></Protected>} />
         <Route path="production-targets" element={<Protected path="/production-targets"><ProductionTargetsPage /></Protected>} />
         <Route path="brands" element={<Protected path="/brands"><BrandsPage /></Protected>} />
+        <Route path="distributors" element={<Protected path="/distributors"><DistributorsPage /></Protected>} />
         <Route path="machines" element={<Protected path="/machines"><MachinesPage /></Protected>} />
         <Route path="shifts" element={<Protected path="/shifts"><ShiftsPage /></Protected>} />
         <Route path="changeover-types" element={<Protected path="/changeover-types"><ChangeoverTypesPage /></Protected>} />

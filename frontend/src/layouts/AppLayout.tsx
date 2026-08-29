@@ -26,6 +26,7 @@ export default function AppLayout() {
     typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true,
   );
   const [q, setQ] = useState('');
+  const [navQ, setNavQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const searchWrapRef = useRef<HTMLDivElement>(null);
@@ -86,6 +87,27 @@ export default function AppLayout() {
     }
     return [...map.entries()];
   }, [items]);
+
+  const filteredGroups = useMemo(() => {
+    const term = navQ.trim().toLowerCase();
+    if (!term) return groups;
+    return groups
+      .map(([group, links]) => {
+        const matched =
+          term.length === 1
+            ? links.filter((l) => l.label.toLowerCase().startsWith(term))
+            : [
+                ...links.filter((l) => l.label.toLowerCase().startsWith(term)),
+                ...links.filter(
+                  (l) =>
+                    !l.label.toLowerCase().startsWith(term) &&
+                    (l.label.toLowerCase().includes(term) || group.toLowerCase().includes(term)),
+                ),
+              ];
+        return [group, matched] as const;
+      })
+      .filter(([, links]) => links.length > 0);
+  }, [groups, navQ]);
 
   const pageHits = useMemo(() => {
     const term = debouncedQ.toLowerCase();
@@ -221,8 +243,45 @@ export default function AppLayout() {
           </button>
         </div>
 
+        <div className="shrink-0 px-2.5 pb-2">
+          <label className="relative block">
+            <Search
+              size={14}
+              strokeWidth={1.75}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
+              style={{ color: 'var(--sidebar-text)' }}
+              aria-hidden
+            />
+            <input
+              className="sidebar-search"
+              type="search"
+              value={navQ}
+              onChange={(e) => setNavQ(e.target.value)}
+              placeholder="Search menu (A–Z)"
+              aria-label="Search menu by name or first letter"
+              autoComplete="off"
+            />
+            {navQ ? (
+              <button
+                type="button"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5"
+                style={{ color: 'var(--sidebar-text)' }}
+                onClick={() => setNavQ('')}
+                aria-label="Clear menu search"
+              >
+                <X size={12} />
+              </button>
+            ) : null}
+          </label>
+        </div>
+
         <nav className="sidebar-nav min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 pb-2 pt-0.5">
-          {groups.map(([group, links]) => (
+          {filteredGroups.length === 0 ? (
+            <div className="px-2 py-3 text-xs" style={{ color: 'var(--sidebar-text)' }}>
+              No pages start with “{navQ.trim()}”.
+            </div>
+          ) : null}
+          {filteredGroups.map(([group, links]) => (
             <div key={group} className="sidebar-nav-group">
               <div className="sidebar-nav-label">{group}</div>
               <div className="sidebar-nav-links">
@@ -233,6 +292,7 @@ export default function AppLayout() {
                       key={link.path}
                       to={link.path}
                       onClick={() => {
+                        setNavQ('');
                         if (window.matchMedia('(max-width: 767px)').matches) setOpen(false);
                       }}
                       className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}

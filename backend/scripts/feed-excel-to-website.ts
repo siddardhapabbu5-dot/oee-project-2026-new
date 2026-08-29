@@ -5,6 +5,7 @@
 import ExcelJS from 'exceljs';
 import bcrypt from 'bcryptjs';
 import { PrismaClient, Role } from '@prisma/client';
+import { canonicalDowntimeReasonName } from '../src/utils/downtimeReasonName.ts';
 
 const prisma = new PrismaClient();
 const FILE =
@@ -167,11 +168,18 @@ async function main() {
       update: { name: categoryName.trim(), deletedAt: null, isActive: true },
       create: { code: catCode, name: categoryName.trim() },
     });
-    const reasonCode = `DR-${slug(categoryName).slice(0, 8)}-${slug(reasonName).slice(0, 16)}`;
+    const canonical = canonicalDowntimeReasonName(reasonName.trim());
+    const existing = await prisma.downtimeReason.findFirst({
+      where: { deletedAt: null, name: { equals: canonical, mode: 'insensitive' } },
+    });
+    if (existing) {
+      return { category, reason: existing };
+    }
+    const reasonCode = `DR-${slug(categoryName).slice(0, 8)}-${slug(canonical).slice(0, 16)}`;
     const reason = await prisma.downtimeReason.upsert({
       where: { code: reasonCode },
-      update: { name: reasonName.trim(), categoryId: category.id, deletedAt: null, isActive: true },
-      create: { code: reasonCode, name: reasonName.trim(), categoryId: category.id },
+      update: { name: canonical, categoryId: category.id, deletedAt: null, isActive: true },
+      create: { code: reasonCode, name: canonical, categoryId: category.id },
     });
     return { category, reason };
   }
@@ -295,7 +303,7 @@ async function main() {
       // Downtime-only continuation rows (no production hour)
       const machineName = String(cellValue(row.getCell(22)) ?? '').trim();
       const categoryName = String(cellValue(row.getCell(23)) ?? '').trim();
-      const reasonName = String(cellValue(row.getCell(24)) ?? '').trim();
+      const reasonName = canonicalDowntimeReasonName(String(cellValue(row.getCell(24)) ?? '').trim());
       const actionTaken = String(cellValue(row.getCell(25)) ?? '').trim();
       const dtStartVal = cellValue(row.getCell(19));
       const dtEndVal = cellValue(row.getCell(20));

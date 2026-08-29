@@ -25,7 +25,7 @@ function toAuthUser(user: {
 
 export async function login(email: string, password: string, req?: Request) {
   const user = await prisma.user.findFirst({
-    where: { email: email.toLowerCase(), deletedAt: null },
+    where: { email: email.trim().toLowerCase(), deletedAt: null },
   });
   if (!user || !user.isActive) {
     throw new UnauthorizedError('Invalid credentials');

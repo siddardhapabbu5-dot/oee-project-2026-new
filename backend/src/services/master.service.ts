@@ -1,8 +1,9 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
-import { NotFoundError } from '../utils/errors.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
 import { writeAuditLog } from '../utils/audit.js';
 import { pickProductOptions } from '../utils/productOptions.js';
+import { canonicalDistributorKey } from '../utils/distributorName.js';
 import type { Request } from 'express';
 
 type SoftModel =
@@ -15,7 +16,8 @@ type SoftModel =
   | 'downtimeCategory'
   | 'downtimeReason'
   | 'changeoverType'
-  | 'shift';
+  | 'shift'
+  | 'distributor';
 
 async function softDelete(model: SoftModel, id: string, req?: Request, entity?: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -257,6 +259,98 @@ export const masterService = {
   },
   deleteBrand: (id: string, req?: Request) => softDelete('brand', id, req, 'Brand'),
 
+  // Distributors
+  async listDistributors(q: { skip: number; take: number; search?: string }) {
+    const where: Prisma.DistributorWhereInput = {
+      deletedAt: null,
+      ...(q.search
+        ? {
+            OR: [
+              { name: { contains: q.search, mode: 'insensitive' } },
+              { code: { contains: q.search, mode: 'insensitive' } },
+              { phone: { contains: q.search, mode: 'insensitive' } },
+              { area: { contains: q.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+    const [total, items] = await Promise.all([
+      prisma.distributor.count({ where }),
+      prisma.distributor.findMany({
+        where,
+        skip: 0,
+        take: 1000,
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+    const ids = items.map((d) => d.id);
+    const stats = ids.length
+      ? await prisma.salesEntry.groupBy({
+          by: ['distributorId'],
+          where: { deletedAt: null, distributorId: { in: ids } },
+          _sum: { casesSold: true, amount: true },
+          _count: { _all: true },
+          _max: { saleDate: true },
+        })
+      : [];
+    const byId = new Map(stats.map((s) => [s.distributorId, s]));
+    return {
+      total,
+      items: items.map((d) => {
+        const s = byId.get(d.id);
+        return {
+          ...d,
+          casesSold: Number(s?._sum.casesSold ?? 0),
+          amount: Number(s?._sum.amount ?? 0),
+          entryCount: s?._count._all ?? 0,
+          lastSaleDate: s?._max.saleDate ?? null,
+        };
+      }),
+    };
+  },
+  async createDistributor(
+    data: { code?: string; name: string; phone?: string | null; area?: string | null; remarks?: string | null; isActive?: boolean },
+    req?: Request,
+  ) {
+    const name = data.name.trim();
+    const key = canonicalDistributorKey(name);
+    const existing = await prisma.distributor.findMany({ where: { deletedAt: null } });
+    if (existing.some((d) => canonicalDistributorKey(d.name) === key)) {
+      throw new ValidationError('Distributor already exists');
+    }
+    const base = data.code?.trim() || `DST-${slugCode(name)}`;
+    let code = base;
+    for (let n = 2; n < 50; n += 1) {
+      const clash = await prisma.distributor.findUnique({ where: { code } });
+      if (!clash) break;
+      code = `${base.slice(0, 36)}-${n}`;
+    }
+    const item = await prisma.distributor.create({
+      data: {
+        code,
+        name,
+        phone: data.phone || null,
+        area: data.area || null,
+        remarks: data.remarks || null,
+        isActive: data.isActive ?? true,
+      },
+    });
+    await writeAuditLog({ req, action: 'CREATE', entity: 'Distributor', entityId: item.id, after: item });
+    return item;
+  },
+  async updateDistributor(
+    id: string,
+    data: Prisma.DistributorUpdateInput,
+    req?: Request,
+  ) {
+    const before = await prisma.distributor.findFirst({ where: { id, deletedAt: null } });
+    if (!before) throw new NotFoundError('Distributor not found');
+    const item = await prisma.distributor.update({ where: { id }, data });
+    await writeAuditLog({ req, action: 'UPDATE', entity: 'Distributor', entityId: id, before, after: item });
+    return item;
+  },
+  deleteDistributor: (id: string, req?: Request) => softDelete('distributor', id, req, 'Distributor'),
+
   // Products
   async listProducts(q: { skip: number; take: number; search?: string }) {
     const where: Prisma.ProductWhereInput = {
@@ -356,9 +450,26 @@ export const masterService = {
     packVolume?: string;
     isActive?: string;
   }) {
+    let productFilter: Prisma.SkuWhereInput['productId'];
+    if (q.productId) {
+      const product = await prisma.product.findFirst({
+        where: { id: q.productId, deletedAt: null },
+        select: { brandId: true },
+      });
+      if (product?.brandId) {
+        const siblings = await prisma.product.findMany({
+          where: { brandId: product.brandId, deletedAt: null },
+          select: { id: true },
+        });
+        productFilter = { in: siblings.map((p) => p.id) };
+      } else {
+        productFilter = q.productId;
+      }
+    }
+
     const where: Prisma.SkuWhereInput = {
       deletedAt: null,
-      ...(q.productId ? { productId: q.productId } : {}),
+      ...(productFilter ? { productId: productFilter } : {}),
       ...(q.packVolume
         ? {
             OR: [

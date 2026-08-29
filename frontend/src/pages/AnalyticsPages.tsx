@@ -24,6 +24,7 @@ import { StatusBadge } from '../components/CrudPage';
 import { useMemo, useState } from 'react';
 import { formatWorkOrder } from '../lib/workOrder';
 import { metricColor, metricTone } from '../lib/metricBands';
+import { OeeImprovementPanel } from '../components/OeeImprovementPanel';
 
 const COLORS = [
   'var(--chart-1)',
@@ -73,6 +74,10 @@ function rangeForMonth(ym: string) {
   const last = localYmd(new Date(y, m, 0));
   const today = todayLocal();
   return { from, to: last > today ? today : last };
+}
+
+function fmtHoursFromMins(mins: number) {
+  return `${(Number(mins) / 60).toFixed(1)} h`;
 }
 
 function fmtAxisDate(iso: string) {
@@ -136,13 +141,17 @@ export function OeePage() {
               runTimeMins?: number;
               plannedProductionTimeMins?: number;
               idealCycleTimeMins?: number;
+              plannedCases: number;
               goodCases: number;
               actualCases: number;
+              rejectCases: number;
               downtime: number;
             };
             charts: {
               oeeTrend: Array<{ date: string; oee: number; availability: number; performance: number; quality: number }>;
               downtimeByMachine: Array<{ name: string; minutes: number }>;
+              downtimeByCategory?: Array<{ name: string; minutes: number }>;
+              linePerformance?: Array<{ line: string; planned: number; actual: number; downtime?: number }>;
               capacityUtilization: Array<{ date: string; utilization: number }>;
             };
           }>
@@ -330,6 +339,15 @@ export function OeePage() {
           tone={metricTone('quality', k.quality)}
         />
       </div>
+
+      <OeeImprovementPanel
+        kpis={k}
+        charts={{
+          downtimeByCategory: summary.data.charts.downtimeByCategory,
+          downtimeByMachine: c.downtimeByMachine,
+          linePerformance: summary.data.charts.linePerformance,
+        }}
+      />
 
       <div className="panel mb-4 p-4 text-sm" style={{ color: 'var(--muted)' }}>
         <div className="font-semibold" style={{ color: 'var(--text)' }}>
@@ -971,9 +989,9 @@ export function DowntimeAnalysisPage() {
                         <Tooltip
                           formatter={(v, _n, item) => {
                             const total = d.byCategory.reduce((s, r) => s + r.minutes, 0) || 1;
-                            const mins = Math.round(Number(v));
-                            const pct = ((mins / total) * 100).toFixed(1);
-                            return [`${mins} min (${pct}%)`, String(item?.payload?.name ?? 'Category')];
+                            const mins = Number(v);
+                            const pct = ((mins / total) * 100).toFixed(0);
+                            return [`${fmtHoursFromMins(mins)} (${pct}%)`, String(item?.payload?.name ?? 'Category')];
                           }}
                         />
                       </PieChart>
@@ -991,8 +1009,8 @@ export function DowntimeAnalysisPage() {
                           <span className="min-w-0 flex-1 truncate" title={row.name}>
                             {row.name}
                           </span>
-                          <span className="shrink-0 tabular-nums" style={{ color: 'var(--muted)' }}>
-                            {row.minutes}m
+                          <span className="w-16 shrink-0 text-right tabular-nums" style={{ color: 'var(--muted)' }}>
+                            {fmtHoursFromMins(row.minutes)}
                           </span>
                           <span className="w-10 shrink-0 text-right tabular-nums" style={{ color: 'var(--muted)' }}>
                             {((row.minutes / total) * 100).toFixed(0)}%

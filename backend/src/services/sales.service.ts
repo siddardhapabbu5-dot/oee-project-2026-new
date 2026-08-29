@@ -20,6 +20,86 @@ const CHANNEL_LABEL: Record<SalesChannel, string> = {
   OTHER: 'Other',
 };
 
+function slugCode(s: string) {
+  return s
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 36);
+}
+
+function packSizeFromVolume(volume?: string | null) {
+  const v = (volume || '').toUpperCase().replace(/\s+/g, '');
+  if (v.includes('2000ML') || v.includes('2L') || v === '2000') return 6;
+  if (v.includes('1000ML') || v.includes('1L') || v === '1000') return 12;
+  if (v.includes('750ML') || v === '750') return 12;
+  if (v.includes('500ML') || v === '500') return 24;
+  if (v.includes('300ML') || v === '300') return 24;
+  if (v.includes('250ML') || v === '250') return 30;
+  if (v.includes('200ML') || v === '200') return 36;
+  if (v.includes('20L') || v.includes('JAR')) return 1;
+  return null;
+}
+
+function packKey(raw?: string | null) {
+  const v = (raw || '').toUpperCase().replace(/\s+/g, '');
+  if (!v) return '';
+  if (v.includes('JAR') || /(^|[^0-9])20L/.test(v)) return 'JAR-20L';
+  const m = v.match(/(2000|1000|750|500|300|250|200)ML/) || v.match(/(2000|1000|750|500|300|250|200)/);
+  return m ? `${m[1]}ML` : v;
+}
+
+async function skuForProductPack(productId: string, template: {
+  id: string;
+  productId: string;
+  code: string;
+  name: string;
+  packVolume?: string | null;
+  packSize?: number | null;
+  bottlesPerHour?: number | null;
+}) {
+  if (template.productId === productId) return template;
+
+  const product = await prisma.product.findFirst({
+    where: { id: productId, deletedAt: null },
+    select: { id: true, name: true },
+  });
+  if (!product) throw new ValidationError('Product not found');
+
+  const key = packKey(template.packVolume || template.name || template.code);
+  const existing = await prisma.sku.findMany({
+    where: { productId, deletedAt: null },
+  });
+  const match = existing.find(
+    (s) => packKey(s.packVolume || s.name || s.code) === key && key !== '',
+  );
+  if (match) return match;
+
+  const packLabel =
+    template.packVolume ||
+    (key === 'JAR-20L' ? 'Jar-20L' : key.endsWith('ML') ? `${key.replace('ML', '')} ML` : template.name);
+  const base = `SKU-${slugCode(product.name)}-${slugCode(packLabel)}` || `SKU-${Date.now()}`;
+  let code = base;
+  for (let n = 2; n < 50; n += 1) {
+    const clash = await prisma.sku.findUnique({ where: { code } });
+    if (!clash) break;
+    code = `${base.slice(0, 36)}-${n}`;
+  }
+
+  return prisma.sku.create({
+    data: {
+      code,
+      name: `${product.name}-${packLabel}`,
+      productId,
+      packVolume: packLabel,
+      packSize: template.packSize && template.packSize > 0 ? template.packSize : packSizeFromVolume(packLabel),
+      bottlesPerHour: template.bottlesPerHour && template.bottlesPerHour > 0 ? template.bottlesPerHour : 5400,
+      isActive: true,
+    },
+  });
+}
+
 export async function getSalesDashboard(
   user?: AuthUser,
   filters?: { from?: string; to?: string; plantId?: string; channel?: string },
@@ -204,7 +284,7 @@ export async function getSalesDashboard(
 
 export async function listSalesEntries(
   user?: AuthUser,
-  filters?: { from?: string; to?: string; plantId?: string },
+  filters?: { from?: string; to?: string; plantId?: string; channel?: string },
 ) {
   const { start, end } = calendarDateRange(filters?.from, filters?.to, 30);
   return prisma.salesEntry.findMany({
@@ -213,15 +293,17 @@ export async function listSalesEntries(
       saleDate: { gte: start, lte: end },
       ...plantScope(user),
       ...(filters?.plantId ? { plantId: filters.plantId } : {}),
+      ...(filters?.channel ? { channel: filters.channel as SalesChannel } : {}),
     },
     include: {
       plant: true,
       brand: true,
       product: true,
       sku: true,
+      distributor: { select: { id: true, name: true, phone: true, area: true } },
     },
     orderBy: [{ saleDate: 'desc' }, { createdAt: 'desc' }],
-    take: 200,
+    take: 2000,
   });
 }
 
@@ -232,6 +314,7 @@ export async function createSalesEntry(
     brandId?: string | null;
     productId: string;
     skuId: string;
+    distributorId?: string | null;
     channel?: SalesChannel;
     customerName?: string | null;
     invoiceNo?: string | null;
@@ -248,12 +331,24 @@ export async function createSalesEntry(
   const unitPrice = Math.max(0, Number(data.unitPrice) || 0);
   const amount = Number((cases * unitPrice).toFixed(2));
 
-  const sku = await prisma.sku.findFirst({
+  const template = await prisma.sku.findFirst({
     where: { id: data.skuId, deletedAt: null },
-    include: { product: true },
   });
-  if (!sku) throw new ValidationError('SKU not found');
-  if (sku.productId !== data.productId) throw new ValidationError('SKU does not belong to selected product');
+  if (!template) throw new ValidationError('SKU not found');
+  const selectedProduct = await prisma.product.findFirst({
+    where: { id: data.productId, deletedAt: null },
+    select: { id: true, brandId: true },
+  });
+  if (!selectedProduct) throw new ValidationError('Product not found');
+  const sku = await skuForProductPack(selectedProduct.id, template);
+
+  let distributorId = data.distributorId || null;
+  let customerName = data.customerName || null;
+  if (distributorId) {
+    const dist = await prisma.distributor.findFirst({ where: { id: distributorId, deletedAt: null } });
+    if (!dist) throw new ValidationError('Distributor not found');
+    if (!customerName) customerName = dist.name;
+  }
 
   const saleDate = new Date(`${data.saleDate.slice(0, 10)}T00:00:00.000Z`);
 
@@ -261,11 +356,12 @@ export async function createSalesEntry(
     data: {
       saleDate,
       plantId: data.plantId || user?.plantId || null,
-      brandId: data.brandId || sku.product.brandId || null,
-      productId: data.productId,
-      skuId: data.skuId,
+      brandId: data.brandId || selectedProduct.brandId || null,
+      productId: selectedProduct.id,
+      skuId: sku.id,
+      distributorId,
       channel: data.channel || 'DISTRIBUTOR',
-      customerName: data.customerName || null,
+      customerName,
       invoiceNo: data.invoiceNo || null,
       casesSold: cases,
       unitPrice,
