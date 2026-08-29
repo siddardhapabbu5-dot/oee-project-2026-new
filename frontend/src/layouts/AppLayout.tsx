@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, LogOut, Menu, Moon, Search, Sun, X } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore, useThemeStore } from '../store';
 import { NAV_ITEMS, SEARCH_KPIS, canAccess } from '../lib/nav';
@@ -21,7 +21,6 @@ export default function AppLayout() {
   const { theme, toggle, setTheme } = useThemeStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const isHome = location.pathname === '/home' || location.pathname === '/';
   const [open, setOpen] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true,
   );
@@ -108,6 +107,31 @@ export default function AppLayout() {
       })
       .filter(([, links]) => links.length > 0);
   }, [groups, navQ]);
+
+  const activeGroup = useMemo(() => {
+    const hit = items.find(
+      (n) => location.pathname === n.path || location.pathname.startsWith(`${n.path}/`),
+    );
+    return hit?.group ?? 'Overview';
+  }, [items, location.pathname]);
+
+  const [deptOpen, setDeptOpen] = useState<Record<string, boolean>>({});
+  const searching = navQ.trim().length > 0;
+
+  useEffect(() => {
+    setDeptOpen((prev) => {
+      if (prev[activeGroup] !== false) return prev;
+      const next = { ...prev };
+      delete next[activeGroup];
+      return next;
+    });
+  }, [activeGroup]);
+
+  function isDeptOpen(group: string) {
+    if (searching) return true;
+    if (group in deptOpen) return deptOpen[group];
+    return group === 'Overview' || group === activeGroup;
+  }
 
   const pageHits = useMemo(() => {
     const term = debouncedQ.toLowerCase();
@@ -281,9 +305,25 @@ export default function AppLayout() {
               No pages start with “{navQ.trim()}”.
             </div>
           ) : null}
-          {filteredGroups.map(([group, links]) => (
-            <div key={group} className="sidebar-nav-group">
-              <div className="sidebar-nav-label">{group}</div>
+          {filteredGroups.map(([group, links]) => {
+            const openDept = isDeptOpen(group);
+            return (
+            <div key={group} className={`sidebar-nav-group${openDept ? ' is-open' : ''}${group === activeGroup ? ' is-current' : ''}`}>
+              <button
+                type="button"
+                className="sidebar-nav-label"
+                onClick={() => setDeptOpen((prev) => ({ ...prev, [group]: !openDept }))}
+                aria-expanded={openDept}
+              >
+                <span>{group}</span>
+                <ChevronDown
+                  size={14}
+                  strokeWidth={2}
+                  className={`sidebar-nav-chevron${openDept ? ' is-open' : ''}`}
+                  aria-hidden
+                />
+              </button>
+              {openDept ? (
               <div className="sidebar-nav-links">
                 {links.map((link) => {
                   const Icon = link.icon;
@@ -303,8 +343,10 @@ export default function AppLayout() {
                   );
                 })}
               </div>
+              ) : null}
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="shrink-0 border-t px-2.5 py-2 space-y-1.5" style={{ borderColor: 'var(--sidebar-border)' }}>
@@ -556,10 +598,8 @@ export default function AppLayout() {
           </div>
         </header>
         <main
-          className={`app-main min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto ${
-            isHome ? 'p-0' : 'p-3 sm:p-4 md:p-5'
-          }`}
-          style={{ background: isHome ? 'var(--home-deep, #10161f)' : 'var(--bg)' }}
+          className="app-main min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-5"
+          style={{ background: 'var(--bg)' }}
         >
           <Outlet />
         </main>

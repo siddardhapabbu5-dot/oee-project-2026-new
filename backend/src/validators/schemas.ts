@@ -252,6 +252,20 @@ export const salesEntrySchema = z.object({
   remarks: z.string().optional().nullable(),
 });
 
+export const caseBookingSchema = z.object({
+  bookingDate: z.string().min(8),
+  deliveryDate: z.string().min(8),
+  plantId: z.string().optional().nullable(),
+  brandId: z.string().optional().nullable(),
+  productId: z.string().min(1),
+  skuId: z.string().min(1),
+  distributorId: z.string().optional().nullable(),
+  customerName: z.string().optional().nullable(),
+  casesBooked: z.number().positive(),
+  unitPrice: z.number().nonnegative().optional(),
+  remarks: z.string().optional().nullable(),
+});
+
 export const pettyCashSchema = z.object({
   entryDate: z.string().min(8),
   voucherNo: z.string().optional().nullable(),

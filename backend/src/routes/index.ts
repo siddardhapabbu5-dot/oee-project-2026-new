@@ -40,6 +40,7 @@ import {
   wasteEntrySchema,
   wasteEntryUpdateSchema,
   salesEntrySchema,
+  caseBookingSchema,
   pettyCashSchema,
   rftEntrySchema,
   shiftClosingSchema,
@@ -818,6 +819,35 @@ router.post('/sales-entries', authenticate, authorize('ADMIN', 'PRODUCTION_MANAG
 
 router.delete('/sales-entries/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
   success(res, await salesService.softDeleteSalesEntry(idParam(req, 'id')));
+}));
+
+router.get('/case-bookings', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  success(
+    res,
+    await salesService.listCaseBookings(req.user, {
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      status: req.query.status as string | undefined,
+      plantId: req.query.plantId as string | undefined,
+    }),
+  );
+}));
+
+router.post('/case-bookings', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  const body = caseBookingSchema.parse(req.body);
+  success(res, await salesService.createCaseBooking(body, req.user), 201);
+}));
+
+router.post('/case-bookings/:id/deliver', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  success(res, await salesService.deliverCaseBooking(idParam(req, 'id'), req.user));
+}));
+
+router.post('/case-bookings/:id/cancel', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  success(res, await salesService.cancelCaseBooking(idParam(req, 'id')));
+}));
+
+router.delete('/case-bookings/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {
+  success(res, await salesService.softDeleteCaseBooking(idParam(req, 'id')));
 }));
 
 router.get('/petty-cash', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER'), asyncHandler(async (req, res) => {

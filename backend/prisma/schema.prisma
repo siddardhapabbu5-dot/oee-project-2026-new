@@ -92,6 +92,7 @@ model User {
   wasteEntries       WasteEntry[]
   salesEntries       SalesEntry[]
   pettyCashEntries   PettyCashEntry[]
+  caseBookings       CaseBooking[]
   rftEntries         RftEntry[]          @relation("RftEntryCreator")
   shiftClosings      ShiftClosing[]
   notifications      Notification[]
@@ -122,6 +123,7 @@ model Plant {
   productionPlans ProductionPlan[]
   salesEntries    SalesEntry[]
   pettyCashEntries PettyCashEntry[]
+  caseBookings    CaseBooking[]
   rftEntries      RftEntry[]
 
   @@index([deletedAt])
@@ -170,6 +172,7 @@ model Brand {
 
   products Product[]
   salesEntries SalesEntry[]
+  caseBookings CaseBooking[]
 
   @@index([deletedAt])
   @@map("brands")
@@ -195,6 +198,7 @@ model Product {
   changeoversFrom    ChangeoverEntry[] @relation("ChangeoverFrom")
   changeoversTo      ChangeoverEntry[] @relation("ChangeoverTo")
   salesEntries       SalesEntry[]
+  caseBookings       CaseBooking[]
   rftEntries         RftEntry[]
 
   @@index([brandId])
@@ -224,6 +228,7 @@ model Sku {
   changeoversFrom ChangeoverEntry[] @relation("ChangeoverFromSku")
   changeoversTo   ChangeoverEntry[] @relation("ChangeoverToSku")
   salesEntries    SalesEntry[]
+  caseBookings    CaseBooking[]
   rftEntries      RftEntry[]
 
   @@index([productId])
@@ -672,6 +677,7 @@ model Distributor {
   updatedById String?
 
   salesEntries SalesEntry[]
+  caseBookings CaseBooking[]
 
   @@index([name])
   @@index([deletedAt])
@@ -707,6 +713,7 @@ model SalesEntry {
   sku          Sku           @relation(fields: [skuId], references: [id])
   distributor  Distributor?  @relation(fields: [distributorId], references: [id])
   createdBy    User?         @relation(fields: [createdById], references: [id])
+  caseBookings CaseBooking[]
 
   @@index([saleDate])
   @@index([plantId])
@@ -718,6 +725,53 @@ model SalesEntry {
   @@index([paymentMode])
   @@index([deletedAt])
   @@map("sales_entries")
+}
+
+enum CaseBookingStatus {
+  BOOKED
+  DELIVERED
+  CANCELLED
+}
+
+/** Advance case booking — future delivery, separate from day-book sales */
+model CaseBooking {
+  id            String            @id @default(cuid())
+  bookingDate   DateTime
+  deliveryDate  DateTime
+  plantId       String?
+  brandId       String?
+  productId     String
+  skuId         String
+  distributorId String?
+  customerName  String?
+  casesBooked   Float
+  unitPrice     Float             @default(0)
+  amount        Float             @default(0)
+  status        CaseBookingStatus @default(BOOKED)
+  remarks       String?
+  salesEntryId  String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  deletedAt     DateTime?
+  createdById   String?
+
+  plant        Plant?       @relation(fields: [plantId], references: [id])
+  brand        Brand?       @relation(fields: [brandId], references: [id])
+  product      Product      @relation(fields: [productId], references: [id])
+  sku          Sku          @relation(fields: [skuId], references: [id])
+  distributor  Distributor? @relation(fields: [distributorId], references: [id])
+  salesEntry   SalesEntry?  @relation(fields: [salesEntryId], references: [id])
+  createdBy    User?        @relation(fields: [createdById], references: [id])
+
+  @@index([bookingDate])
+  @@index([deliveryDate])
+  @@index([plantId])
+  @@index([productId])
+  @@index([skuId])
+  @@index([distributorId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("case_bookings")
 }
 
 /** Petty cash book — voucher, received / paid, running balance */

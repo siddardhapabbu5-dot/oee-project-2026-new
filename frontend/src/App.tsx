@@ -46,6 +46,7 @@ import WastageStatusPage from './pages/WastageStatusPage';
 import WasteReportPage from './pages/WasteReportPage';
 import SalesDashboardPage from './pages/SalesDashboardPage';
 import SalesEntriesPage from './pages/SalesEntriesPage';
+import CaseBookingPage from './pages/CaseBookingPage';
 import PettyCashPage from './pages/PettyCashPage';
 import RftDashboardPage from './pages/RftDashboardPage';
 import RftEntriesPage from './pages/RftEntriesPage';
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="sales-dashboard" element={<Protected path="/sales-dashboard"><SalesDashboardPage /></Protected>} />
         <Route path="sales-entries" element={<Protected path="/sales-entries"><SalesEntriesPage /></Protected>} />
+        <Route path="case-bookings" element={<Protected path="/case-bookings"><CaseBookingPage /></Protected>} />
         <Route path="petty-cash" element={<Protected path="/petty-cash"><PettyCashPage /></Protected>} />
         <Route path="line-wise" element={<Protected path="/line-wise"><LineWiseOverviewPage /></Protected>} />
         <Route path="day-wise-oee" element={<Protected path="/day-wise-oee"><DayWiseOeePage /></Protected>} />

@@ -1,4 +1,4 @@
-import { Prisma, type PaymentMode, type SalesChannel } from '@prisma/client';
+import { Prisma, type CaseBookingStatus, type PaymentMode, type SalesChannel } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import type { AuthUser } from '../middleware/auth.js';
 import { calendarDateRange, toCalendarDate } from '../utils/dates.js';
@@ -464,4 +464,173 @@ export async function exportSalesExcel(
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
+}
+
+function bookingPlantScope(user?: AuthUser): Prisma.CaseBookingWhereInput {
+  if (!user) return {};
+  if (user.role === 'PRODUCTION_MANAGER' && user.plantId) {
+    return { plantId: user.plantId };
+  }
+  return {};
+}
+
+const BOOKING_INCLUDE = {
+  plant: true,
+  brand: true,
+  product: true,
+  sku: true,
+  distributor: { select: { id: true, name: true, phone: true, area: true } },
+} as const;
+
+async function resolveSalesParty(data: { distributorId?: string | null; customerName?: string | null }) {
+  let distributorId = data.distributorId || null;
+  let customerName = data.customerName?.trim() || null;
+  if (distributorId) {
+    const dist = await prisma.distributor.findFirst({ where: { id: distributorId, deletedAt: null } });
+    if (!dist) throw new ValidationError('Distributor not found');
+    if (!customerName) customerName = dist.name;
+  } else if (customerName) {
+    const dist = await prisma.distributor.findFirst({
+      where: { deletedAt: null, name: { equals: customerName, mode: 'insensitive' } },
+    });
+    if (dist) {
+      distributorId = dist.id;
+      customerName = dist.name;
+    }
+  }
+  return { distributorId, customerName };
+}
+
+export async function listCaseBookings(
+  user?: AuthUser,
+  filters?: { from?: string; to?: string; status?: string; plantId?: string },
+) {
+  const { start, end } = calendarDateRange(filters?.from, filters?.to, 30);
+  const status = filters?.status as CaseBookingStatus | undefined;
+  return prisma.caseBooking.findMany({
+    where: {
+      deletedAt: null,
+      ...bookingPlantScope(user),
+      ...(filters?.plantId ? { plantId: filters.plantId } : {}),
+      ...(status ? { status } : {}),
+      OR: [{ bookingDate: { gte: start, lte: end } }, { deliveryDate: { gte: start, lte: end } }],
+    },
+    include: BOOKING_INCLUDE,
+    orderBy: [{ deliveryDate: 'asc' }, { bookingDate: 'desc' }, { createdAt: 'desc' }],
+    take: 2000,
+  });
+}
+
+export async function createCaseBooking(
+  data: {
+    bookingDate: string;
+    deliveryDate: string;
+    plantId?: string | null;
+    brandId?: string | null;
+    productId: string;
+    skuId: string;
+    distributorId?: string | null;
+    customerName?: string | null;
+    casesBooked: number;
+    unitPrice?: number;
+    remarks?: string | null;
+  },
+  user?: AuthUser,
+) {
+  if (!data.productId || !data.skuId) throw new ValidationError('Product and SKU are required');
+  if (!data.bookingDate) throw new ValidationError('Booking date is required');
+  if (!data.deliveryDate) throw new ValidationError('Delivery date is required');
+  const cases = Number(data.casesBooked);
+  if (!Number.isFinite(cases) || cases <= 0) throw new ValidationError('Cases booked must be greater than 0');
+  const unitPrice = Math.max(0, Number(data.unitPrice) || 0);
+  const amount = Number((cases * unitPrice).toFixed(2));
+
+  const template = await prisma.sku.findFirst({
+    where: { id: data.skuId, deletedAt: null },
+  });
+  if (!template) throw new ValidationError('SKU not found');
+  const selectedProduct = await prisma.product.findFirst({
+    where: { id: data.productId, deletedAt: null },
+    select: { id: true, brandId: true },
+  });
+  if (!selectedProduct) throw new ValidationError('Product not found');
+  const sku = await skuForProductPack(selectedProduct.id, template);
+  const { distributorId, customerName } = await resolveSalesParty(data);
+
+  return prisma.caseBooking.create({
+    data: {
+      bookingDate: new Date(`${data.bookingDate.slice(0, 10)}T00:00:00.000Z`),
+      deliveryDate: new Date(`${data.deliveryDate.slice(0, 10)}T00:00:00.000Z`),
+      plantId: data.plantId || user?.plantId || null,
+      brandId: data.brandId || selectedProduct.brandId || null,
+      productId: selectedProduct.id,
+      skuId: sku.id,
+      distributorId,
+      customerName,
+      casesBooked: cases,
+      unitPrice,
+      amount,
+      status: 'BOOKED',
+      remarks: data.remarks || null,
+      createdById: user?.id,
+    },
+    include: BOOKING_INCLUDE,
+  });
+}
+
+export async function deliverCaseBooking(id: string, user?: AuthUser) {
+  const booking = await prisma.caseBooking.findFirst({
+    where: { id, deletedAt: null },
+    include: BOOKING_INCLUDE,
+  });
+  if (!booking) throw new ValidationError('Booking not found');
+  if (booking.status === 'CANCELLED') throw new ValidationError('Cancelled booking cannot be delivered');
+  if (booking.status === 'DELIVERED' && booking.salesEntryId) return booking;
+
+  const now = new Date();
+  const saleDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const sale = await createSalesEntry(
+    {
+      saleDate,
+      plantId: booking.plantId,
+      brandId: booking.brandId,
+      productId: booking.productId,
+      skuId: booking.skuId,
+      distributorId: booking.distributorId,
+      customerName: booking.customerName,
+      channel: 'DISTRIBUTOR',
+      paymentMode: 'ADVANCE',
+      casesSold: booking.casesBooked,
+      unitPrice: booking.unitPrice,
+      remarks: booking.remarks ? `Advance booking: ${booking.remarks}` : 'Advance case booking',
+    },
+    user,
+  );
+
+  return prisma.caseBooking.update({
+    where: { id },
+    data: { status: 'DELIVERED', salesEntryId: sale.id },
+    include: BOOKING_INCLUDE,
+  });
+}
+
+export async function cancelCaseBooking(id: string) {
+  const booking = await prisma.caseBooking.findFirst({ where: { id, deletedAt: null } });
+  if (!booking) throw new ValidationError('Booking not found');
+  if (booking.status === 'DELIVERED') throw new ValidationError('Delivered booking cannot be cancelled');
+  return prisma.caseBooking.update({
+    where: { id },
+    data: { status: 'CANCELLED' },
+    include: BOOKING_INCLUDE,
+  });
+}
+
+export async function softDeleteCaseBooking(id: string) {
+  const existing = await prisma.caseBooking.findFirst({ where: { id, deletedAt: null } });
+  if (!existing) throw new ValidationError('Booking not found');
+  if (existing.status === 'DELIVERED') throw new ValidationError('Delivered booking cannot be deleted');
+  return prisma.caseBooking.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
 }
