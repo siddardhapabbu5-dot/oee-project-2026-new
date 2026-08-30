@@ -8,6 +8,7 @@ Enterprise-grade Production Management Web Application built with **React (Vite)
 - **Admin** — users, plants, lines, products/SKUs, supervisors, planning, reports, settings, audit logs
 - **Production Manager** — plan vs actual, OEE, monitoring, shift/capacity/downtime/changeover analytics, approvals, Excel/PDF export
 - **Line Supervisor** — assigned plans, hourly production, downtime, changeover, manpower, rejects, shift closing, line dashboard
+- **Mobile (LineSight)** — Expo phone app for supervisors: today’s OEE, work orders, hourly production entry, alerts
 
 ### Core Modules
 - Secure login, JWT auth, RBAC, profile & password change, session timeout
@@ -23,6 +24,7 @@ Enterprise-grade Production Management Web Application built with **React (Vite)
 | Layer | Technology |
 |-------|------------|
 | Frontend | React 19, Vite, TypeScript, Tailwind CSS v4, TanStack Query, Zustand, Recharts |
+| Mobile | Expo (React Native), React Navigation, Zustand, SecureStore |
 | Backend | Express, Zod validation, Winston logging, Helmet, rate limiting |
 | Database | PostgreSQL 16 + Prisma ORM |
 | Auth | JWT (Bearer) + role guards |
@@ -45,6 +47,13 @@ Enterprise-grade Production Management Web Application built with **React (Vite)
 │       ├── layouts/
 │       ├── pages/
 │       ├── lib/
+│       └── store/
+├── mobile/                  # Expo phone app (LineSight Mobile)
+│   └── src/
+│       ├── components/
+│       ├── lib/
+│       ├── navigation/
+│       ├── screens/
 │       └── store/
 ├── docker-compose.yml       # PostgreSQL
 └── README.md
@@ -81,6 +90,7 @@ CREATE DATABASE production_management OWNER pms;
 npm install
 npm install --prefix backend
 npm install --prefix frontend
+npm install --prefix mobile
 copy backend\.env.example backend\.env   # Windows
 # or: cp backend/.env.example backend/.env
 ```
@@ -104,6 +114,15 @@ npm run dev
 - API: http://localhost:4000  
 - Swagger: http://localhost:4000/api/docs  
 - Health: http://localhost:4000/health  
+
+### Mobile app (Expo)
+
+```bash
+npm run setup:mobile   # once
+npm run dev:mobile     # Expo QR / emulator / web
+```
+
+See [`mobile/README.md`](mobile/README.md). On a physical phone, set `EXPO_PUBLIC_API_URL` to your machine’s LAN API URL (e.g. `http://192.168.1.20:4000/api`).
 
 ## Demo Accounts
 
