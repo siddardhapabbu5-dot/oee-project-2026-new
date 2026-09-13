@@ -619,7 +619,6 @@ export default function ChangeoverEntriesPage() {
               className={FILTER_CTRL}
               type="date"
               value={filterFrom}
-              max={filterTo || undefined}
               onChange={(e) => {
                 const v = e.target.value;
                 setFilterFrom(v);
@@ -632,7 +631,6 @@ export default function ChangeoverEntriesPage() {
               className={FILTER_CTRL}
               type="date"
               value={filterTo}
-              min={filterFrom || undefined}
               onChange={(e) => {
                 const v = e.target.value;
                 setFilterTo(v);

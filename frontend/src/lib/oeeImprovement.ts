@@ -247,8 +247,8 @@ export function buildOeeImprovement(kpis: ImprovementKpis, charts: ImprovementCh
         ? `${cat} is the largest stop (${hoursFromMins(topCategory!.minutes)} of ${hoursFromMins(downtime)} unplanned).`
         : `The line was down ${hoursFromMins(downtime)} while it should have been producing.`,
       doNext: `${cat ? categoryAdvice(cat) : 'Reduce unplanned stops first — they drag Availability, which multiplies into OEE.'}${machineBit}`,
-      href: '/downtime-analysis',
-      hrefLabel: 'Downtime analysis',
+      href: '/maintenance-reliability',
+      hrefLabel: 'MTBF / MTTR dashboard',
       oeeGain: avail.oeeGain,
       oeeIfFixed: avail.oeeIfExcellent,
     });

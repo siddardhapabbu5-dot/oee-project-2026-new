@@ -107,12 +107,15 @@ export const PILLARS: Pillar[] = [
           'Cable damage',
           'Encoder fault',
           'Servo drive fault',
+          'Transformer cutout fuse',
         ],
       },
       {
         title: 'Utility Failure',
         items: [
           'Power failure',
+          'Power Cut',
+          'Transformer cutout fuse',
           'Low voltage',
           'Air compressor failure',
           'Low air pressure',
@@ -228,7 +231,13 @@ export const PILLARS: Pillar[] = [
       },
       {
         title: 'Utility Issues',
-        items: ['Low Air Pressure', 'Unstable water pressure', 'Voltage fluctuation affecting speed'],
+        items: [
+          'Low Air Pressure',
+          'Unstable water pressure',
+          'Voltage fluctuation affecting speed',
+          'Transformer cutout fuse',
+          'Power Cut',
+        ],
       },
       {
         title: 'Operator Issues',

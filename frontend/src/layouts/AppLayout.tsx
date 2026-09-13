@@ -6,6 +6,7 @@ import { useAuthStore, useThemeStore } from '../store';
 import { NAV_ITEMS, SEARCH_KPIS, canAccess } from '../lib/nav';
 import api, { type ApiResponse } from '../lib/api';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
+import ApiOfflineBanner from '../components/ApiOfflineBanner';
 import { formatWorkOrder } from '../lib/workOrder';
 
 type SearchPayload = {
@@ -21,6 +22,7 @@ export default function AppLayout() {
   const { theme, toggle, setTheme } = useThemeStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const isHome = location.pathname === '/home' || location.pathname === '/';
   const [open, setOpen] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true,
   );
@@ -598,9 +600,12 @@ export default function AppLayout() {
           </div>
         </header>
         <main
-          className="app-main min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-5"
-          style={{ background: 'var(--bg)' }}
+          className={`app-main min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto ${
+            isHome ? 'p-0' : 'p-3 sm:p-4 md:p-5'
+          }`}
+          style={{ background: isHome ? 'var(--home-deep, #10161f)' : 'var(--bg)' }}
         >
+          {!isHome ? <ApiOfflineBanner /> : null}
           <Outlet />
         </main>
       </div>

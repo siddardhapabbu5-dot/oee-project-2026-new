@@ -176,7 +176,13 @@ export const downtimeEntryBaseSchema = z.object({
   reason: z.string().optional().nullable(),
   startTime: z.string().or(z.date()),
   endTime: z.string().or(z.date()),
+  failureMode: z.string().optional().nullable(),
+  maintenanceType: z.enum(['CORRECTIVE', 'PREVENTIVE', 'BREAKDOWN', 'EMERGENCY']).optional().nullable(),
+  technician: z.string().optional().nullable(),
   actionTaken: z.string().optional().nullable(),
+  rootCause: z.string().optional().nullable(),
+  sparePartsUsed: z.string().optional().nullable(),
+  status: z.enum(['LOGGED', 'RCA', 'CORRECTIVE_ACTION', 'VERIFIED', 'CLOSED']).optional(),
   remarks: z.string().optional().nullable(),
 });
 

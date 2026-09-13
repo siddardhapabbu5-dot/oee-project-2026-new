@@ -93,7 +93,7 @@ export async function createWasteEntry(
     materialId: string;
     quantity: number;
     actualQtyIssued?: number | null;
-    unit?: string;
+    unit?: string | null;
     reason?: string | null;
     remarks?: string | null;
     shiftId?: string | null;
@@ -170,7 +170,7 @@ export async function updateWasteEntry(
     materialId?: string;
     quantity?: number;
     actualQtyIssued?: number | null;
-    unit?: string;
+    unit?: string | null;
     reason?: string | null;
     remarks?: string | null;
     shiftId?: string | null;

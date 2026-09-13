@@ -7,7 +7,7 @@
  */
 import { execSync } from 'node:child_process';
 
-const port = Number(process.env.PORT || 4000);
+const port = Number(process.argv[2] || process.env.PORT || 4000);
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));

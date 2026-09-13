@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api, { type ApiResponse } from '../lib/api';
+import { API_OFFLINE_MESSAGE, isApiUnreachable } from '../lib/network';
 import { FilterField, FILTER_CTRL } from '../components/FilterBar';
 import { Field, IconButton, LoadingBlock, PageHeader, KpiCard } from '../components/ui';
 import { formatWorkOrder } from '../lib/workOrder';
@@ -245,6 +246,11 @@ function localYmd(d = new Date()) {
   return `${y}-${m}-${day}`;
 }
 
+function monthStartYmd() {
+  const d = new Date();
+  return localYmd(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
 export default function ProductionEntriesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPlanId = searchParams.get('planId') || '';
@@ -253,7 +259,7 @@ export default function ProductionEntriesPage() {
   const [dtForm, setDtForm] = useState<Record<string, string>>({});
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingDowntimeId, setEditingDowntimeId] = useState<string | null>(null);
-  const [exportFrom, setExportFrom] = useState(() => localYmd());
+  const [exportFrom, setExportFrom] = useState(() => monthStartYmd());
   const [exportTo, setExportTo] = useState(() => localYmd());
   const [reportShiftId, setReportShiftId] = useState('');
   const [exportMode, setExportMode] = useState<'plan' | 'day' | 'shift'>('plan');
@@ -261,6 +267,15 @@ export default function ProductionEntriesPage() {
   const qc = useQueryClient();
   const didInitDateFromPlan = useRef(false);
   const exportRangeValid = Boolean(exportFrom && exportTo && exportFrom <= exportTo);
+
+  function clearPlanSelection() {
+    setPlanId('');
+    setSearchParams({}, { replace: true });
+    setProdForm({});
+    setDtForm({});
+    setEditingEntryId(null);
+    setEditingDowntimeId(null);
+  }
 
   const plans = useQuery({
     queryKey: ['plans-entries', exportFrom, exportTo, reportShiftId],
@@ -290,7 +305,6 @@ export default function ProductionEntriesPage() {
     retry: 2,
     retryDelay: (n) => Math.min(1000 * 2 ** n, 4000),
     refetchOnReconnect: true,
-    placeholderData: keepPreviousData,
   });
 
   const allShiftsSelected = !reportShiftId;
@@ -377,7 +391,7 @@ export default function ProductionEntriesPage() {
       return;
     }
 
-    if (plans.isLoading) return;
+    if (plans.isLoading || plans.isFetching) return;
     if (plans.isError) return;
     if (!plans.data) return;
     if (planId && plans.data.some((x) => x.id === planId)) return;
@@ -429,6 +443,9 @@ export default function ProductionEntriesPage() {
     'DG Generator',
     'Electrical Panel',
     'PLC/HMI',
+    'Line Startup',
+    'Line Shut Down',
+    'Power Cut',
     'Other',
   ];
 
@@ -481,6 +498,7 @@ export default function ProductionEntriesPage() {
       'AVAIL-MECH',
       'AVAIL-ELEC',
       'AVAIL-UTIL',
+      'AVAIL-XFMR',
       'AVAIL-MAT',
       'AVAIL-QH',
       'AVAIL-MANP',
@@ -517,6 +535,13 @@ export default function ProductionEntriesPage() {
     queryFn: async () =>
       (await api.get<ApiResponse<Array<{ id: string; name: string }>>>('/shifts')).data.data,
   });
+
+  // Pick first shift on load so work orders are available without an extra click
+  useEffect(() => {
+    if (reportShiftId || initialPlanId) return;
+    const first = shifts.data?.[0];
+    if (first) setReportShiftId(first.id);
+  }, [shifts.data, reportShiftId, initialPlanId]);
 
   const p = plan.data;
 
@@ -623,19 +648,45 @@ export default function ProductionEntriesPage() {
 
   const saveProduction = useMutation({
     mutationFn: async () => {
+      if (!planId) throw new Error('Select a work order first');
+      if (!prodForm.timeFrom || !prodForm.timeTo) {
+        throw new Error('Select Hour Slot (Time From / Time To)');
+      }
       const planned = Number(prodForm.plannedCases || 0);
       const actual = Number(prodForm.productionCases || 0);
       const accepted = prodForm.acceptedCases !== undefined && prodForm.acceptedCases !== ''
         ? Number(prodForm.acceptedCases)
         : actual;
       const hold = Number(prodForm.holdCases || 0);
+      if (Number.isNaN(planned) || Number.isNaN(actual) || Number.isNaN(accepted) || Number.isNaN(hold)) {
+        throw new Error('Enter valid numbers for planned / production / accepted / hold');
+      }
       if (accepted + hold > actual + 0.0001) {
-        throw new Error('Accepted + Hold cases cannot exceed Production cases');
+        throw new Error(
+          `Accepted (${accepted}) + Hold (${hold}) cannot exceed Production (${actual}). Lower Accepted/Hold or raise Production cases.`,
+        );
       }
       const anchor = shiftAnchorMins(p?.plannedStartTime);
       const hourStart = combineShiftDateTime(planDate, prodForm.timeFrom || '06:00', anchor);
       let hourEnd = combineShiftDateTime(planDate, prodForm.timeTo || '07:00', anchor);
+      if (Number.isNaN(hourStart.getTime()) || Number.isNaN(hourEnd.getTime())) {
+        throw new Error('Invalid hour times — re-select the Hour Slot');
+      }
       if (hourEnd <= hourStart) hourEnd = new Date(hourEnd.getTime() + 24 * 60 * 60 * 1000);
+
+      // Block duplicate hour slots (same shift-relative start) unless editing that row
+      const slotKey = String(shiftOrderKey(hourStart.toISOString(), anchor));
+      const duplicate = (p?.productionEntries ?? []).find((e) => {
+        if (editingEntryId && e.id === editingEntryId) return false;
+        return String(shiftOrderKey(e.hourStart, anchor)) === slotKey;
+      });
+      if (duplicate) {
+        const label = `${formatTime24(duplicate.hourStart)} – ${formatTime24(duplicate.hourEnd)}`;
+        throw new Error(
+          `Hour ${label} already has an entry. Edit it from the Hourly Log below, or pick a free hour.`,
+        );
+      }
+
       const payload = {
         planId,
         hourStart: hourStart.toISOString(),
@@ -683,8 +734,12 @@ export default function ProductionEntriesPage() {
       await qc.invalidateQueries({ queryKey: ['plan', planId] });
       await qc.invalidateQueries({ queryKey: ['production-shift-totals'] });
     },
-    onError: (e: unknown) =>
-      toast.error((e as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message || 'Save failed'),
+    onError: (e: unknown) => {
+      const apiMsg = (e as { response?: { data?: { error?: { message?: string } } } })?.response?.data
+        ?.error?.message;
+      const localMsg = e instanceof Error ? e.message : null;
+      toast.error(apiMsg || localMsg || 'Save failed');
+    },
   });
 
   const deleteProduction = useMutation({
@@ -1005,11 +1060,11 @@ export default function ProductionEntriesPage() {
               className={FILTER_CTRL}
               type="date"
               value={exportFrom}
-              max={exportTo || undefined}
               onChange={(e) => {
                 const v = e.target.value;
                 setExportFrom(v);
                 if (exportTo && v > exportTo) setExportTo(v);
+                clearPlanSelection();
               }}
             />
           </FilterField>
@@ -1018,11 +1073,11 @@ export default function ProductionEntriesPage() {
               className={FILTER_CTRL}
               type="date"
               value={exportTo}
-              min={exportFrom || undefined}
               onChange={(e) => {
                 const v = e.target.value;
                 setExportTo(v);
                 if (exportFrom && v < exportFrom) setExportFrom(v);
+                clearPlanSelection();
               }}
             />
           </FilterField>
@@ -1030,7 +1085,10 @@ export default function ProductionEntriesPage() {
             <select
               className={FILTER_CTRL}
               value={reportShiftId}
-              onChange={(e) => setReportShiftId(e.target.value)}
+              onChange={(e) => {
+                setReportShiftId(e.target.value);
+                clearPlanSelection();
+              }}
             >
               <option value="">All shifts</option>
               {(shifts.data ?? []).map((s) => (
@@ -1078,7 +1136,11 @@ export default function ProductionEntriesPage() {
         ) : null}
         {plans.isError ? (
           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" style={{ color: 'var(--danger)' }}>
-            <span>Could not load work orders. The API may be down or unreachable.</span>
+            <span>
+              {isApiUnreachable(plans.error)
+                ? API_OFFLINE_MESSAGE
+                : 'Could not load work orders. The API may be down or unreachable.'}
+            </span>
             <button
               type="button"
               className="btn btn-secondary"
@@ -1117,7 +1179,11 @@ export default function ProductionEntriesPage() {
         ) : shiftTotals.isError ? (
           <div className="panel p-4 text-sm" style={{ color: 'var(--danger)' }}>
             <div className="flex flex-wrap items-center gap-2">
-              <span>Could not load shift production totals.</span>
+              <span>
+                {isApiUnreachable(shiftTotals.error)
+                  ? API_OFFLINE_MESSAGE
+                  : 'Could not load shift production totals.'}
+              </span>
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -1302,11 +1368,11 @@ export default function ProductionEntriesPage() {
             </div>
           </div>
 
-          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="Work Order" value={formatWorkOrder(p.planNumber)} hint={`Batch ${p.batchNumber}`} />
-            <KpiCard label="Planned Cases" value={p.plannedCases.toLocaleString()} />
-            <KpiCard label="Production Cases" value={actualTotal.toLocaleString()} />
-            <KpiCard label="Loss / Downtime" value={`${lossTotal} / ${dtMins}m`} tone="warn" />
+          <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard size="sm" label="Work Order" value={formatWorkOrder(p.planNumber)} hint={`Batch ${p.batchNumber}`} />
+            <KpiCard size="sm" label="Planned Cases" value={p.plannedCases.toLocaleString()} />
+            <KpiCard size="sm" label="Production Cases" value={actualTotal.toLocaleString()} />
+            <KpiCard size="sm" label="Loss / Downtime" value={`${lossTotal} / ${dtMins}m`} tone="warn" />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
@@ -1349,14 +1415,39 @@ export default function ProductionEntriesPage() {
                       value={`${prodForm.timeFrom}|${prodForm.timeTo}`}
                       onChange={(e) => {
                         const [from, to] = e.target.value.split('|');
-                        setProdForm({ ...prodForm, timeFrom: from, timeTo: to });
+                        // Switching hour for a new entry: clear quality so leftover Accepted/Hold
+                        // cannot block save (Accepted + Hold > Production).
+                        setProdForm({
+                          ...prodForm,
+                          timeFrom: from,
+                          timeTo: to,
+                          ...(editingEntryId
+                            ? {}
+                            : {
+                                productionCases: '',
+                                acceptedCases: '',
+                                holdCases: '',
+                                remarks: '',
+                                plannedCases: String(hourTarget),
+                              }),
+                        });
                       }}
                     >
-                      {planSlots.map((s) => (
-                        <option key={`${s.from}-${s.to}`} value={`${s.from}|${s.to}`}>
-                          {s.from} – {s.to}
-                        </option>
-                      ))}
+                      {planSlots.map((s) => {
+                        const anchor = shiftMins;
+                        const key = String(((timeToMins(s.from) - anchor + 24 * 60) % (24 * 60)));
+                        const taken = occupiedSlotKeys(p?.productionEntries ?? [], anchor).has(key);
+                        const editingThis =
+                          !!editingEntryId &&
+                          prodForm.timeFrom === s.from &&
+                          prodForm.timeTo === s.to;
+                        return (
+                          <option key={`${s.from}-${s.to}`} value={`${s.from}|${s.to}`}>
+                            {s.from} – {s.to}
+                            {taken && !editingThis ? ' (saved)' : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   </Field>
                 ) : null}
@@ -1407,8 +1498,14 @@ export default function ProductionEntriesPage() {
                     onChange={(e) => {
                       const productionCases = e.target.value;
                       const next: Record<string, string> = { ...prodForm, productionCases };
+                      const prod = Number(productionCases || 0);
+                      const hold = Number(prodForm.holdCases || 0);
+                      // Keep Accepted in sync when empty or still matching previous Production
                       if (!prodForm.acceptedCases || prodForm.acceptedCases === prodForm.productionCases) {
                         next.acceptedCases = productionCases;
+                      } else if (Number(prodForm.acceptedCases || 0) + hold > prod + 0.0001) {
+                        // Clamp so leftover Accepted/Hold cannot block the next save
+                        next.acceptedCases = String(Math.max(0, prod - hold));
                       }
                       setProdForm(next);
                     }}

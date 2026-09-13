@@ -1199,7 +1199,13 @@ export async function createDowntime(
     reason?: string | null;
     startTime: string | Date;
     endTime: string | Date;
+    failureMode?: string | null;
+    maintenanceType?: 'CORRECTIVE' | 'PREVENTIVE' | 'BREAKDOWN' | 'EMERGENCY' | null;
+    technician?: string | null;
     actionTaken?: string | null;
+    rootCause?: string | null;
+    sparePartsUsed?: string | null;
+    status?: 'LOGGED' | 'RCA' | 'CORRECTIVE_ACTION' | 'VERIFIED' | 'CLOSED';
     remarks?: string | null;
   },
   req?: Request,
@@ -1227,11 +1233,17 @@ export async function createDowntime(
       startTime: start,
       endTime: end,
       durationMins,
+      failureMode: data.failureMode?.trim() || null,
+      maintenanceType: data.maintenanceType ?? null,
+      technician: data.technician?.trim() || null,
       actionTaken: data.actionTaken,
+      rootCause: data.rootCause?.trim() || null,
+      sparePartsUsed: data.sparePartsUsed?.trim() || null,
+      status: data.status ?? 'LOGGED',
       remarks: data.remarks,
       createdById: req!.user!.id,
     },
-    include: { machine: true, category: true, reason: true },
+    include: { machine: true, category: true, reason: true, plan: { include: { plant: true, line: true, shift: true } } },
   });
 
   if (durationMins >= 30) {
@@ -1261,12 +1273,18 @@ export async function updateDowntime(
   id: string,
   data: {
     machineId?: string | null;
-    categoryId?: string;
+    categoryId?: string | null;
     reasonId?: string | null;
     reason?: string | null;
     startTime?: string | Date;
     endTime?: string | Date;
+    failureMode?: string | null;
+    maintenanceType?: 'CORRECTIVE' | 'PREVENTIVE' | 'BREAKDOWN' | 'EMERGENCY' | null;
+    technician?: string | null;
     actionTaken?: string | null;
+    rootCause?: string | null;
+    sparePartsUsed?: string | null;
+    status?: 'LOGGED' | 'RCA' | 'CORRECTIVE_ACTION' | 'VERIFIED' | 'CLOSED';
     remarks?: string | null;
   },
   req?: Request,
@@ -1313,10 +1331,16 @@ export async function updateDowntime(
       startTime: start,
       endTime: end,
       durationMins,
+      failureMode: data.failureMode !== undefined ? data.failureMode?.trim() || null : before.failureMode,
+      maintenanceType: data.maintenanceType !== undefined ? data.maintenanceType : before.maintenanceType,
+      technician: data.technician !== undefined ? data.technician?.trim() || null : before.technician,
       actionTaken: data.actionTaken !== undefined ? data.actionTaken : before.actionTaken,
+      rootCause: data.rootCause !== undefined ? data.rootCause?.trim() || null : before.rootCause,
+      sparePartsUsed: data.sparePartsUsed !== undefined ? data.sparePartsUsed?.trim() || null : before.sparePartsUsed,
+      status: data.status !== undefined ? data.status : before.status,
       remarks: data.remarks !== undefined ? data.remarks : before.remarks,
     },
-    include: { machine: true, category: true, reason: true },
+    include: { machine: true, category: true, reason: true, plan: { include: { plant: true, line: true, shift: true } } },
   });
 
   await writeAuditLog({
@@ -1341,6 +1365,91 @@ export async function deleteDowntime(id: string, req?: Request) {
   });
   await writeAuditLog({ req, action: 'DELETE', entity: 'DowntimeEntry', entityId: id, before });
   return { message: 'Downtime entry deleted' };
+}
+
+const downtimeInclude = {
+  machine: { select: { id: true, code: true, name: true } },
+  category: { select: { id: true, code: true, name: true } },
+  reason: { select: { id: true, code: true, name: true } },
+  createdBy: { select: { id: true, firstName: true, lastName: true } },
+  plan: {
+    select: {
+      id: true,
+      planNumber: true,
+      productionDate: true,
+      plant: { select: { id: true, name: true } },
+      line: { select: { id: true, code: true, name: true } },
+      shift: { select: { id: true, name: true } },
+    },
+  },
+} satisfies Prisma.DowntimeEntryInclude;
+
+function downtimeListWhere(
+  params: {
+    from?: string;
+    to?: string;
+    plantId?: string;
+    lineId?: string;
+    shiftId?: string;
+    machineId?: string;
+    status?: string;
+  },
+  user?: AuthUser,
+): Prisma.DowntimeEntryWhereInput {
+  const parts: Prisma.DowntimeEntryWhereInput[] = [];
+
+  if (user?.role === 'LINE_SUPERVISOR') {
+    parts.push({
+      plan: {
+        OR: [{ supervisorId: user.id }, { line: { supervisorId: user.id } }],
+      },
+    });
+  } else if (user?.role === 'PRODUCTION_MANAGER' && user.plantId) {
+    parts.push({ plan: { plantId: user.plantId } });
+  }
+
+  if (params.from || params.to) {
+    const { start, end } = calendarDateRange(params.from, params.to, 365);
+    parts.push({
+      OR: [
+        { plan: { productionDate: { gte: start, lte: end } } },
+        { startTime: { gte: start, lte: end } },
+      ],
+    });
+  }
+
+  if (params.plantId) parts.push({ plan: { plantId: params.plantId } });
+  if (params.lineId) parts.push({ plan: { lineId: params.lineId } });
+  if (params.shiftId) parts.push({ plan: { shiftId: params.shiftId } });
+  if (params.machineId) parts.push({ machineId: params.machineId });
+  if (
+    params.status &&
+    ['LOGGED', 'RCA', 'CORRECTIVE_ACTION', 'VERIFIED', 'CLOSED'].includes(params.status)
+  ) {
+    parts.push({ status: params.status as 'LOGGED' | 'RCA' | 'CORRECTIVE_ACTION' | 'VERIFIED' | 'CLOSED' });
+  }
+
+  if (parts.length === 0) return { deletedAt: null };
+  return { deletedAt: null, AND: parts };
+}
+
+export async function listDowntimes(
+  params: {
+    from?: string;
+    to?: string;
+    plantId?: string;
+    lineId?: string;
+    shiftId?: string;
+    machineId?: string;
+    status?: string;
+  } = {},
+  user?: AuthUser,
+) {
+  return prisma.downtimeEntry.findMany({
+    where: downtimeListWhere(params, user),
+    include: downtimeInclude,
+    orderBy: [{ startTime: 'desc' }, { createdAt: 'desc' }],
+  });
 }
 
 const changeoverInclude = {

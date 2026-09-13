@@ -7,6 +7,7 @@ import * as userService from '../services/user.service.js';
 import { masterService } from '../services/master.service.js';
 import * as productionService from '../services/production.service.js';
 import * as dashboardService from '../services/dashboard.service.js';
+import * as maintenanceReliabilityService from '../services/maintenanceReliability.service.js';
 import * as reportService from '../services/report.service.js';
 import * as wasteService from '../services/waste.service.js';
 import * as salesService from '../services/sales.service.js';
@@ -411,6 +412,24 @@ router.post('/downtime-entries', authenticate, authorize('ADMIN', 'PRODUCTION_MA
   success(res, await productionService.createDowntime(downtimeEntrySchema.parse(req.body), req), 201);
 }));
 
+router.get('/downtime-entries', authenticate, asyncHandler(async (req, res) => {
+  success(
+    res,
+    await productionService.listDowntimes(
+      {
+        from: req.query.from as string | undefined,
+        to: req.query.to as string | undefined,
+        plantId: req.query.plantId as string | undefined,
+        lineId: req.query.lineId as string | undefined,
+        shiftId: req.query.shiftId as string | undefined,
+        machineId: req.query.machineId as string | undefined,
+        status: req.query.status as string | undefined,
+      },
+      req.user,
+    ),
+  );
+}));
+
 router.patch('/downtime-entries/:id', authenticate, authorize('ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'), asyncHandler(async (req, res) => {
   success(res, await productionService.updateDowntime(idParam(req), downtimeEntryUpdateSchema.parse(req.body), req));
 }));
@@ -687,6 +706,20 @@ router.get('/dashboard/downtime-analysis', authenticate, asyncHandler(async (req
       from: req.query.from as string | undefined,
       to: req.query.to as string | undefined,
       lineId: req.query.lineId as string | undefined,
+    }),
+  );
+}));
+
+router.get('/dashboard/maintenance-reliability', authenticate, asyncHandler(async (req, res) => {
+  success(
+    res,
+    await maintenanceReliabilityService.getMaintenanceReliabilityDashboard(req.user, {
+      from: req.query.from as string | undefined,
+      to: req.query.to as string | undefined,
+      plantId: req.query.plantId as string | undefined,
+      lineId: req.query.lineId as string | undefined,
+      machineId: req.query.machineId as string | undefined,
+      shiftId: req.query.shiftId as string | undefined,
     }),
   );
 }));

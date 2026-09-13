@@ -408,7 +408,10 @@ export default function RftDashboardPage() {
                     dataKey="quantity"
                     nameKey="name"
                     outerRadius={80}
-                    label={({ name, pct }) => `${name} ${pct}%`}
+                    label={(props) => {
+                      const row = props.payload as { name?: string; pct?: number } | undefined;
+                      return `${row?.name ?? props.name ?? ''} ${row?.pct ?? 0}%`;
+                    }}
                   >
                     {(d.composition ?? []).map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />

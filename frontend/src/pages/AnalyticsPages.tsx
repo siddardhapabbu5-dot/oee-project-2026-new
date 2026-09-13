@@ -25,6 +25,7 @@ import { useMemo, useState } from 'react';
 import { formatWorkOrder } from '../lib/workOrder';
 import { metricColor, metricTone } from '../lib/metricBands';
 import { OeeImprovementPanel } from '../components/OeeImprovementPanel';
+import { MaintenanceQuickLinks } from '../components/MaintenanceQuickLinks';
 
 const COLORS = [
   'var(--chart-1)',
@@ -348,6 +349,8 @@ export function OeePage() {
           linePerformance: summary.data.charts.linePerformance,
         }}
       />
+
+      {(k.downtime ?? 0) > 0 ? <MaintenanceQuickLinks className="mb-4" /> : null}
 
       <div className="panel mb-4 p-4 text-sm" style={{ color: 'var(--muted)' }}>
         <div className="font-semibold" style={{ color: 'var(--text)' }}>
@@ -921,17 +924,12 @@ export function DowntimeAnalysisPage() {
 
       <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Downtime Events" value={k.totalEvents.toLocaleString()} />
-        <KpiCard label="Total Minutes" value={k.totalMins.toLocaleString()} tone="bad" />
-        <KpiCard label="Avg Mins / Event" value={k.avgMins.toLocaleString()} tone="warn" />
+        <KpiCard label="Total Downtime" value={fmtHoursFromMins(k.totalMins)} tone="bad" hint="All stops in period" />
+        <KpiCard label="Avg / Event" value={fmtHoursFromMins(k.avgMins)} tone="warn" hint="Average stop duration" />
         <KpiCard label="Categories" value={k.categoryCount.toLocaleString()} tone="info" />
         <KpiCard label="Machines Affected" value={k.machineCount.toLocaleString()} />
-        <KpiCard label="Top Category" value={k.topCategory} hint={`${k.topCategoryMins} min`} tone="warn" />
-        <KpiCard label="Top Machine" value={k.topMachine} hint={`${k.topMachineMins} min`} tone="bad" />
-        <KpiCard
-          label="Hours Lost"
-          value={(k.totalMins / 60).toFixed(1)}
-          hint="Total downtime hours"
-        />
+        <KpiCard label="Top Category" value={fmtHoursFromMins(k.topCategoryMins)} hint={k.topCategory} tone="warn" />
+        <KpiCard label="Top Machine" value={fmtHoursFromMins(k.topMachineMins)} hint={k.topMachine} tone="bad" />
       </div>
 
       {d.rows.length === 0 ? (
@@ -1023,18 +1021,67 @@ export function DowntimeAnalysisPage() {
               )}
             </ChartCard>
 
-            <ChartCard title="By Machine">
-              <ResponsiveContainer>
-                <BarChart data={d.byMachine} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <Tooltip />
-                  <Bar dataKey="minutes" name="Minutes" fill="var(--chart-4)" radius={4}>
-                    <ChartValueLabels />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <ChartCard title="By Machine" bodyClassName="h-auto min-h-[18rem]">
+              {d.byMachine.length === 0 ? (
+                <div className="flex h-40 items-center justify-center text-sm" style={{ color: 'var(--muted)' }}>
+                  No machine data
+                </div>
+              ) : (
+                <div className="flex min-h-[16rem] flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="mx-auto h-52 w-full max-w-[220px] shrink-0 sm:mx-0">
+                    <ResponsiveContainer>
+                      <PieChart>
+                        <Pie
+                          data={d.byMachine}
+                          dataKey="minutes"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={48}
+                          outerRadius={78}
+                          paddingAngle={2}
+                          stroke="var(--panel)"
+                          strokeWidth={2}
+                        >
+                          {d.byMachine.map((_, i) => (
+                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(v, _n, item) => {
+                            const total = d.byMachine.reduce((s, r) => s + r.minutes, 0) || 1;
+                            const mins = Number(v);
+                            const pct = ((mins / total) * 100).toFixed(0);
+                            return [`${fmtHoursFromMins(mins)} (${pct}%)`, String(item?.payload?.name ?? 'Machine')];
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <ul className="max-h-52 flex-1 space-y-1.5 overflow-y-auto pr-1 text-sm">
+                    {(() => {
+                      const total = d.byMachine.reduce((s, r) => s + r.minutes, 0) || 1;
+                      return d.byMachine.map((row, i) => (
+                        <li key={`${row.name}-${i}`} className="flex items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                            style={{ background: COLORS[i % COLORS.length] }}
+                          />
+                          <span className="min-w-0 flex-1 truncate" title={row.name}>
+                            {row.name}
+                          </span>
+                          <span className="w-16 shrink-0 text-right tabular-nums" style={{ color: 'var(--muted)' }}>
+                            {fmtHoursFromMins(row.minutes)}
+                          </span>
+                          <span className="w-10 shrink-0 text-right tabular-nums" style={{ color: 'var(--muted)' }}>
+                            {((row.minutes / total) * 100).toFixed(0)}%
+                          </span>
+                        </li>
+                      ));
+                    })()}
+                  </ul>
+                </div>
+              )}
             </ChartCard>
 
             <ChartCard title="By Line">

@@ -38,6 +38,7 @@ import {
   Wallet,
   CalendarClock,
   ShieldCheck,
+  Wrench,
 } from 'lucide-react';
 import type { Role } from '../store';
 
@@ -71,6 +72,11 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Changeover Details', path: '/changeover-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Production', icon: ArrowLeftRight },
   { label: 'Approvals', path: '/approvals', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Production', icon: BadgeCheck },
 
+  { label: 'Maintenance Dashboard', path: '/maintenance-reliability', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Maintenance', icon: Wrench },
+  { label: 'Breakdown Entry', path: '/breakdown-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Maintenance', icon: ClipboardList },
+  { label: 'MTBF & MTTR Guide', path: '/mtbf-mttr-guide', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Maintenance', icon: BookOpen },
+  { label: 'Downtime Analysis', path: '/downtime-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Maintenance', icon: TimerOff },
+
   { label: 'RFT Dashboard', path: '/rft', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Quality', icon: ShieldCheck },
   { label: 'RFT Entries', path: '/rft-entries', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Quality', icon: ShieldCheck },
   { label: 'Wastage Status', path: '/wastage-status', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Quality', icon: ClipboardList },
@@ -91,7 +97,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Changeover Types', path: '/changeover-types', roles: ['ADMIN'], group: 'Master Data', icon: RefreshCw },
 
   { label: 'Monitoring', path: '/monitoring', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: Activity },
-  { label: 'Downtime Analysis', path: '/downtime-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Analytics', icon: TimerOff },
   { label: 'Changeover Analysis', path: '/changeover-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER'], group: 'Analytics', icon: ArrowLeftRight },
   { label: 'Manpower Analysis', path: '/manpower-analysis', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: UsersRound },
   { label: 'Reports', path: '/reports', roles: ['ADMIN', 'PRODUCTION_MANAGER', 'LINE_SUPERVISOR'], group: 'Analytics', icon: FileBarChart2 },
@@ -224,6 +229,18 @@ export const SEARCH_KPIS: SearchKpi[] = [
     hint: 'Logged stop minutes',
     path: '/downtime-analysis',
     keywords: ['downtime', 'stops', 'breakdown', 'stoppage'],
+  },
+  {
+    label: 'MTBF / MTTR',
+    hint: 'Maintenance reliability dashboard',
+    path: '/maintenance-reliability',
+    keywords: ['mtbf', 'mttr', 'maintenance', 'reliability', 'breakdown pareto', 'repeat failure'],
+  },
+  {
+    label: 'Breakdown Entry',
+    hint: 'Log TPM breakdown with RCA fields',
+    path: '/breakdown-entries',
+    keywords: ['breakdown entry', 'failure mode', 'technician', 'root cause', 'corrective action', 'tpm'],
   },
   {
     label: 'Run Time',

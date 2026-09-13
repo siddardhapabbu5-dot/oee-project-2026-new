@@ -221,6 +221,45 @@ export function metricColor(kind: MetricKind, value: number): string {
   return `var(--band-${metricBand(kind, value)})`;
 }
 
+/** MTBF — higher minutes = better reliability (plant target typically 120 min) */
+export type ReliabilityBand = 'excellent' | 'good' | 'average' | 'poor';
+
+export const MTBF_TARGET_MINS = 120;
+export const MTTR_TARGET_MINS = 30;
+
+export function mtbfBand(mins: number, target = MTBF_TARGET_MINS): ReliabilityBand {
+  const n = Number(mins);
+  if (!Number.isFinite(n) || n <= 0) return 'poor';
+  if (n >= target * 1.25) return 'excellent';
+  if (n >= target) return 'good';
+  if (n >= target * 0.5) return 'average';
+  return 'poor';
+}
+
+/** MTTR — lower minutes = better recovery (plant target typically 30 min) */
+export function mttrBand(mins: number, target = MTTR_TARGET_MINS): ReliabilityBand {
+  const n = Number(mins);
+  if (!Number.isFinite(n) || n < 0) return 'poor';
+  if (n === 0) return 'excellent';
+  if (n <= target) return 'good';
+  if (n <= target * 1.5) return 'average';
+  return 'poor';
+}
+
+export function reliabilityBandTone(band: ReliabilityBand): MetricTone {
+  if (band === 'excellent') return 'excellent';
+  if (band === 'good') return 'fair';
+  if (band === 'average') return 'warn';
+  return 'bad';
+}
+
+export const RELIABILITY_BAND_LABEL: Record<ReliabilityBand, string> = {
+  excellent: 'Excellent',
+  good: 'Good',
+  average: 'Warning',
+  poor: 'Critical',
+};
+
 export function exampleKpiColor(row: (typeof EXAMPLE_KPI_STRIP)[number]): string {
   if (row.downtimeMins != null) return downtimeColor(row.downtimeMins);
   if (row.kind) {

@@ -51,6 +51,9 @@ import PettyCashPage from './pages/PettyCashPage';
 import RftDashboardPage from './pages/RftDashboardPage';
 import RftEntriesPage from './pages/RftEntriesPage';
 import Top5AnalysisPage from './pages/Top5AnalysisPage';
+import MaintenanceReliabilityPage from './pages/MaintenanceReliabilityPage';
+import BreakdownEntriesPage from './pages/BreakdownEntriesPage';
+import MtbfMttrGuidePage from './pages/MtbfMttrGuidePage';
 import type { ReactNode } from 'react';
 
 function Protected({ children, path }: { children: ReactNode; path: string }) {
@@ -118,6 +121,9 @@ export default function App() {
         <Route path="approvals" element={<Protected path="/approvals"><ApprovalsPage /></Protected>} />
         <Route path="monitoring" element={<Protected path="/monitoring"><MonitoringPage /></Protected>} />
         <Route path="downtime-analysis" element={<Protected path="/downtime-analysis"><DowntimeAnalysisPage /></Protected>} />
+        <Route path="maintenance-reliability" element={<Protected path="/maintenance-reliability"><MaintenanceReliabilityPage /></Protected>} />
+        <Route path="breakdown-entries" element={<Protected path="/breakdown-entries"><BreakdownEntriesPage /></Protected>} />
+        <Route path="mtbf-mttr-guide" element={<Protected path="/mtbf-mttr-guide"><MtbfMttrGuidePage /></Protected>} />
         <Route path="changeover-analysis" element={<Protected path="/changeover-analysis"><ChangeoverAnalysisPage /></Protected>} />
         <Route path="rft" element={<Protected path="/rft"><RftDashboardPage /></Protected>} />
         <Route path="manpower-analysis" element={<Protected path="/manpower-analysis"><ManpowerAnalysisPage /></Protected>} />

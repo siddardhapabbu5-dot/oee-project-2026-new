@@ -4,6 +4,10 @@ const ALIASES: Record<string, string> = {
   'powercut': 'Power Cut',
   'power cut issue': 'Power Cut',
   'powercut issue': 'Power Cut',
+  'transformer cutout fuse': 'Transformer cutout fuse',
+  'transformer cut out fuse': 'Transformer cutout fuse',
+  'xfmr cutout fuse': 'Transformer cutout fuse',
+  'cutout fuse': 'Transformer cutout fuse',
 };
 
 function reasonKey(name: string) {

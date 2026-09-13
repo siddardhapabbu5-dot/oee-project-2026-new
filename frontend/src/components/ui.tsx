@@ -152,7 +152,11 @@ export function KpiCard({
             {value}
           </div>
           {hint ? (
-            <div className={`mt-1.5 text-xs leading-snug ${compact ? 'line-clamp-2' : ''}`} style={{ color: 'var(--muted)' }}>
+            <div
+              className={`mt-1.5 line-clamp-2 text-xs leading-snug`}
+              style={{ color: 'var(--muted)' }}
+              title={typeof hint === 'string' ? hint : undefined}
+            >
               {hint}
             </div>
           ) : null}
@@ -201,7 +205,7 @@ export function ChartCard({
         </div>
         <CopyCardButton targetRef={cardRef} title={title} className="shrink-0 opacity-70 transition-opacity group-hover:opacity-100" />
       </div>
-      <div className={clsx('h-64 w-full', bodyClassName)}>{children}</div>
+      <div className={clsx('w-full', bodyClassName ?? 'h-64')}>{children}</div>
     </div>
   );
 }

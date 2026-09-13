@@ -63,6 +63,21 @@ enum ShiftClosingStatus {
   CLOSED
 }
 
+enum MaintenanceType {
+  CORRECTIVE
+  PREVENTIVE
+  BREAKDOWN
+  EMERGENCY
+}
+
+enum BreakdownStatus {
+  LOGGED
+  RCA
+  CORRECTIVE_ACTION
+  VERIFIED
+  CLOSED
+}
+
 model User {
   id           String    @id @default(cuid())
   employeeId   String    @unique
@@ -427,20 +442,26 @@ model ReworkEntry {
 }
 
 model DowntimeEntry {
-  id           String    @id @default(cuid())
-  planId       String
-  machineId    String?
-  categoryId   String
-  reasonId     String
-  startTime    DateTime
-  endTime      DateTime
-  durationMins Float
-  actionTaken  String?
-  remarks      String?
-  createdById  String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  deletedAt    DateTime?
+  id              String            @id @default(cuid())
+  planId          String
+  machineId       String?
+  categoryId      String
+  reasonId        String
+  startTime       DateTime
+  endTime         DateTime
+  durationMins    Float
+  failureMode     String?
+  maintenanceType MaintenanceType?
+  technician      String?
+  actionTaken     String?
+  rootCause       String?
+  sparePartsUsed  String?
+  status          BreakdownStatus   @default(LOGGED)
+  remarks         String?
+  createdById     String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
 
   plan      ProductionPlan    @relation(fields: [planId], references: [id])
   machine   Machine?          @relation(fields: [machineId], references: [id])

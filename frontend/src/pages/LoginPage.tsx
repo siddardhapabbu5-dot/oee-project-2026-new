@@ -29,8 +29,10 @@ export default function LoginPage() {
       toast.success('Welcome back');
       navigate('/home');
     } catch (err: unknown) {
+      const ax = err as { response?: { data?: { error?: { message?: string } }; status?: number }; code?: string };
       const message =
-        (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message ||
+        ax?.response?.data?.error?.message ||
+        (!ax?.response || ax.code === 'ERR_NETWORK' ? 'Server is not running. Wait a moment and try again.' : null) ||
         'Login failed';
       setError(message);
       toast.error(message);

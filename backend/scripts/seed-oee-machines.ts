@@ -40,6 +40,9 @@ const MACHINE_NAMES = [
   'DG Generator',
   'Electrical Panel',
   'PLC/HMI',
+  'Line Startup',
+  'Line Shut Down',
+  'Power Cut',
   'Other',
 ] as const;
 

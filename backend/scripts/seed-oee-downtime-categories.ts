@@ -20,6 +20,7 @@ const CATEGORIES: Array<{ code: string; name: string; description: string }> = [
   { code: 'AVAIL-MECH', name: 'Mechanical Breakdown', description: 'Availability — mechanical breakdown' },
   { code: 'AVAIL-ELEC', name: 'Electrical Breakdown', description: 'Availability — electrical breakdown' },
   { code: 'AVAIL-UTIL', name: 'Utility Failure', description: 'Availability — utility failure' },
+  { code: 'AVAIL-XFMR', name: 'Transformer cutout fuse', description: 'Availability — transformer cutout fuse / HT fuse trip' },
   { code: 'AVAIL-MAT', name: 'Material Shortage', description: 'Availability — material shortage' },
   { code: 'AVAIL-QH', name: 'Quality Hold', description: 'Availability — quality hold' },
   { code: 'AVAIL-MANP', name: 'Manpower', description: 'Availability — manpower' },

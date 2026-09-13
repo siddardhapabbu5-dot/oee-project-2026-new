@@ -34,6 +34,7 @@ import api, { type ApiResponse } from '../lib/api';
 import { ChartCard, CopyCardButton, Field, KpiCard, LoadingBlock, PageHeader } from '../components/ui';
 import { ChartValueLabels } from '../components/chartLabels';
 import { OeeImprovementPanel } from '../components/OeeImprovementPanel';
+import { MaintenanceQuickLinks } from '../components/MaintenanceQuickLinks';
 import { useAuthStore } from '../store';
 import {
   downtimeColor,
@@ -658,6 +659,8 @@ export default function DashboardPage() {
         }}
       />
 
+      {(k.downtime ?? 0) > 0 ? <MaintenanceQuickLinks className="mt-3" /> : null}
+
       <div className="mt-3 grid gap-3 xl:grid-cols-2">
         <ChartCard title="Production Plan vs Actual">
           <ResponsiveContainer>
@@ -792,9 +795,9 @@ export default function DashboardPage() {
                     <Tooltip
                       formatter={(v, _n, item) => {
                         const total = c.downtimeByCategory.reduce((s, r) => s + r.minutes, 0) || 1;
-                        const mins = Math.round(Number(v));
+                        const mins = Number(v);
                         const pct = ((mins / total) * 100).toFixed(1);
-                        return [`${mins} min (${pct}%)`, String(item?.payload?.name ?? 'Downtime')];
+                        return [`${formatHoursFromMins(mins)} (${pct}%)`, String(item?.payload?.name ?? 'Downtime')];
                       }}
                     />
                   </PieChart>
@@ -812,8 +815,8 @@ export default function DashboardPage() {
                       <span className="min-w-0 flex-1 truncate" title={row.name} style={{ color: 'var(--text)' }}>
                         {row.name}
                       </span>
-                      <span className="shrink-0 tabular-nums" style={{ color: 'var(--muted)' }}>
-                        {row.minutes}m
+                      <span className="w-16 shrink-0 text-right tabular-nums" style={{ color: 'var(--muted)' }}>
+                        {formatHoursFromMins(row.minutes)}
                       </span>
                       <span className="w-10 shrink-0 text-right tabular-nums" style={{ color: 'var(--muted)' }}>
                         {((row.minutes / total) * 100).toFixed(0)}%

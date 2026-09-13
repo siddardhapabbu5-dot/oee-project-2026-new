@@ -10,7 +10,14 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      retry: 1,
+      retry: (failureCount, error) => {
+        const ax = error as { response?: unknown; code?: string };
+        if (!ax.response || ax.code === 'ERR_NETWORK' || ax.code === 'ECONNABORTED') {
+          return failureCount < 3;
+        }
+        return failureCount < 1;
+      },
+      retryDelay: (n) => Math.min(1000 * 2 ** n, 8000),
       staleTime: 60_000,
     },
   },
