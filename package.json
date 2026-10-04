@@ -9,6 +9,8 @@
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:web-only": "npm run dev --prefix frontend",
     "build": "npm run build --prefix backend && npm run build --prefix frontend",
+    "deploy": "node scripts/deploy-railway.mjs",
+    "deploy:status": "node scripts/deploy-railway.mjs status",
     "db:up": "docker compose up -d",
     "db:wait": "npm run db:wait --prefix backend",
     "db:down": "docker compose down",
