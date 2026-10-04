@@ -14,8 +14,8 @@ CREATE INDEX IF NOT EXISTS "downtime_entries_planId_deletedAt_idx"
 CREATE INDEX IF NOT EXISTS "changeover_entries_planId_deletedAt_idx"
   ON "changeover_entries" ("planId", "deletedAt");
 
-CREATE INDEX IF NOT EXISTS "changeover_entries_lineId_productionDate_deletedAt_idx"
-  ON "changeover_entries" ("lineId", "productionDate", "deletedAt");
+-- lineId / productionDate index is created after those columns exist
+-- (see later changeover columns migration).
 
 CREATE INDEX IF NOT EXISTS "notifications_userId_isRead_idx"
   ON "notifications" ("userId", "isRead");

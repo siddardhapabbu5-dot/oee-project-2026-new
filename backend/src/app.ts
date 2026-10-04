@@ -13,6 +13,14 @@ import routes from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { swaggerSpec } from './docs/swagger.js';
 
+// Railway injects these on GitHub-sourced deploys; locally they are unset.
+const BUILD_INFO = {
+  commit: (process.env.RAILWAY_GIT_COMMIT_SHA || process.env.APP_COMMIT || 'local-dev').slice(0, 7),
+  branch: process.env.RAILWAY_GIT_BRANCH || null,
+  deploymentId: process.env.RAILWAY_DEPLOYMENT_ID || null,
+  startedAt: new Date().toISOString(),
+};
+
 export function createApp() {
   const app = express();
 
@@ -52,6 +60,7 @@ export function createApp() {
         status: 'ok',
         service: 'pms-api',
         database: 'up',
+        version: BUILD_INFO,
         timestamp: new Date().toISOString(),
       });
     } catch {

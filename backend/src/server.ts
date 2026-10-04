@@ -7,7 +7,7 @@ const app = createApp();
 
 async function main() {
   await prisma.$connect();
-  const server = app.listen(env.PORT, () => {
+  const server = app.listen(env.PORT, '0.0.0.0', () => {
     logger.info(`PMS API listening on http://localhost:${env.PORT}`);
     logger.info(`Swagger docs at http://localhost:${env.PORT}/api/docs`);
   });

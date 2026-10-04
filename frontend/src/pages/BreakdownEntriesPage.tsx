@@ -646,10 +646,10 @@ export default function BreakdownEntriesPage() {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex gap-1">
-                          <IconButton label="Edit" onClick={() => startEdit(row)}>
+                          <IconButton title="Edit" aria-label="Edit" onClick={() => startEdit(row)}>
                             <Pencil size={14} />
                           </IconButton>
-                          <IconButton label="Delete" danger onClick={() => remove.mutate(row.id)}>
+                          <IconButton title="Delete" aria-label="Delete" danger onClick={() => remove.mutate(row.id)}>
                             <Trash2 size={14} />
                           </IconButton>
                         </div>

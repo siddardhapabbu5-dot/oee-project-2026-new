@@ -535,9 +535,9 @@ export default function MaintenanceReliabilityPage() {
                           <td className="px-2 py-2">
                             {r.reason}
                             {r.alert && (
-                              <Badge className="ml-2" tone="bad">
-                                Repeat
-                              </Badge>
+                              <span className="ml-2">
+                                <Badge tone="bad">Repeat</Badge>
+                              </span>
                             )}
                           </td>
                           <td className="px-2 py-2 text-right tabular-nums">{r.occurrences}</td>
